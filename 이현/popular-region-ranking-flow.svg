@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="430" viewBox="0 0 1100 430" role="img" aria-labelledby="title desc">
+  <title id="title">인기 지역 랭킹 Redis 흐름</title>
+  <desc id="desc">지역 분석 성공 후 Set으로 중복 회원을 확인하고 Sorted Set으로 지역 점수를 올려 인기 지역 랭킹을 조회하는 흐름</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ecfeff"/>
+      <stop offset="1" stop-color="#ecfdf5"/>
+    </linearGradient>
+    <filter id="shadow" x="-8%" y="-12%" width="116%" height="124%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect x="18" y="18" width="1064" height="394" rx="28" fill="url(#bg)" stroke="#cbd5e1"/>
+  <text x="54" y="68" font-family="Pretendard, Apple SD Gothic Neo, Arial, sans-serif" font-size="28" font-weight="900" fill="#0f172a">인기 지역 랭킹은 “중복 제거”와 “점수 누적”을 나눠서 처리한다</text>
+
+  <g filter="url(#shadow)">
+    <rect x="58" y="116" width="210" height="190" rx="20" fill="#ffffff" stroke="#d7dee8"/>
+    <text x="84" y="156" font-family="Pretendard, Arial, sans-serif" font-size="22" font-weight="900" fill="#0f766e">1. 지역 분석 성공</text>
+    <circle cx="114" cy="214" r="28" fill="#dbeafe"/>
+    <circle cx="114" cy="204" r="10" fill="#1d4ed8"/>
+    <path d="M92 246c6-22 38-22 44 0" fill="#1d4ed8" opacity="0.85"/>
+    <rect x="154" y="190" width="78" height="26" rx="13" fill="#ecfdf5"/>
+    <text x="169" y="209" font-family="SF Mono, Menlo, monospace" font-size="14" font-weight="800" fill="#047857">회원 12345</text>
+    <rect x="154" y="228" width="92" height="26" rx="13" fill="#eff6ff"/>
+    <text x="169" y="247" font-family="SF Mono, Menlo, monospace" font-size="14" font-weight="800" fill="#1d4ed8">지역 1168...</text>
+  </g>
+
+  <path d="M288 210h54" stroke="#0f766e" stroke-width="5" stroke-linecap="round"/>
+  <path d="M334 196l18 14-18 14" fill="none" stroke="#0f766e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g filter="url(#shadow)">
+    <rect x="366" y="116" width="230" height="190" rx="20" fill="#ffffff" stroke="#d7dee8"/>
+    <text x="392" y="156" font-family="Pretendard, Arial, sans-serif" font-size="22" font-weight="900" fill="#0f766e">2. Set으로 확인</text>
+    <text x="392" y="184" font-family="Pretendard, Arial, sans-serif" font-size="15" font-weight="800" fill="#64748b">오늘 이 지역을 처음 봤는가?</text>
+    <rect x="392" y="206" width="66" height="34" rx="17" fill="#ecfdf5"/>
+    <text x="407" y="228" font-family="SF Mono, Menlo, monospace" font-size="15" font-weight="900" fill="#047857">12345</text>
+    <rect x="466" y="206" width="66" height="34" rx="17" fill="#ecfdf5"/>
+    <text x="481" y="228" font-family="SF Mono, Menlo, monospace" font-size="15" font-weight="900" fill="#047857">77410</text>
+    <rect x="392" y="250" width="148" height="34" rx="17" fill="#fffbeb" stroke="#f59e0b"/>
+    <text x="412" y="272" font-family="Pretendard, Arial, sans-serif" font-size="15" font-weight="900" fill="#92400e">처음이면 1 반환</text>
+  </g>
+
+  <path d="M616 210h54" stroke="#0f766e" stroke-width="5" stroke-linecap="round"/>
+  <path d="M662 196l18 14-18 14" fill="none" stroke="#0f766e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g filter="url(#shadow)">
+    <rect x="694" y="116" width="230" height="190" rx="20" fill="#ffffff" stroke="#d7dee8"/>
+    <text x="720" y="156" font-family="Pretendard, Arial, sans-serif" font-size="22" font-weight="900" fill="#0f766e">3. ZSet 점수 증가</text>
+    <text x="720" y="184" font-family="Pretendard, Arial, sans-serif" font-size="15" font-weight="800" fill="#64748b">지역별 인기 점수 누적</text>
+    <g>
+      <rect x="720" y="206" width="178" height="30" rx="8" fill="#f8fafc"/>
+      <text x="734" y="226" font-family="SF Mono, Menlo, monospace" font-size="14" font-weight="900" fill="#0f172a">1168010100</text>
+      <text x="856" y="226" font-family="SF Mono, Menlo, monospace" font-size="14" font-weight="900" fill="#0f766e">+1</text>
+      <rect x="720" y="244" width="178" height="30" rx="8" fill="#f8fafc"/>
+      <text x="734" y="264" font-family="SF Mono, Menlo, monospace" font-size="14" font-weight="900" fill="#0f172a">1165010800</text>
+      <text x="856" y="264" font-family="SF Mono, Menlo, monospace" font-size="14" font-weight="900" fill="#64748b">23</text>
+    </g>
+  </g>
+
+  <path d="M810 326v28" stroke="#0f766e" stroke-width="5" stroke-linecap="round"/>
+  <path d="M796 346l14 18 14-18" fill="none" stroke="#0f766e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g filter="url(#shadow)">
+    <rect x="340" y="336" width="510" height="52" rx="18" fill="#111827"/>
+    <text x="372" y="369" font-family="Pretendard, Arial, sans-serif" font-size="20" font-weight="900" fill="#a7f3d0">조회 시점:</text>
+    <text x="482" y="369" font-family="Pretendard, Arial, sans-serif" font-size="20" font-weight="800" fill="#e5e7eb">최근 7일 ZSet 점수만 읽어 TOP 지역 반환</text>
+  </g>
+</svg>

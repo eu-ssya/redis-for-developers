@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>레디스 자료 구조 활용 사례</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --paper: #ffffff;
+      --soft: #f9fafb;
+      --soft2: #eef2f7;
+      --line: #e2e8f0;
+      --line2: #b8c2d4;
+      --text: #243042;
+      --strong: #111827;
+      --muted: #667085;
+      --dim: #98a2b3;
+      --accent: #0f766e;
+      --accent2: #d97706;
+      --red: #dc2626;
+      --shadow: 0 18px 50px rgba(17,24,39,.08);
+      --term-bg: #0b1020;
+      --term-text: #e5e7eb;
+      --term-dim: #94a3b8;
+      --term-blue: #60a5fa;
+      --term-green: #4ade80;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; }
+    body {
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      font-size: 15px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    code, pre { font-family: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace; }
+    .app { width: 100%; min-height: 100vh; }
+    .doc { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; scroll-behavior: smooth; }
+    .toc { position: sticky; top: 0; height: 100vh; padding: 34px 22px 44px 30px; border-right: 1px solid var(--line); background: #fbfcfe; overflow-y: auto; }
+    .toc__brand { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--line); color: var(--accent); font-size: 10px; font-weight: 900; letter-spacing: .22em; text-transform: uppercase; }
+    .toc a { display: block; padding: 9px 12px; border-left: 3px solid transparent; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 800; line-height: 1.42; }
+    .toc a:hover { color: var(--strong); background: #fff; border-left-color: var(--accent); box-shadow: 0 8px 24px rgba(17,24,39,.05); }
+    .toc small { display: block; margin-bottom: 1px; color: var(--dim); font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+    .hero { margin: 28px 42px 0; padding: 46px 52px 40px; border: 1px solid #172033; border-radius: 10px; background: #111827; box-shadow: var(--shadow); }
+    .eyebrow { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 14px; color: #a7f3d0; font-size: 11px; font-weight: 900; letter-spacing: .2em; text-transform: uppercase; }
+    .eyebrow::before { content: ''; width: 22px; height: 2px; background: #f59e0b; }
+    h1 { max-width: 900px; color: #fff; font-size: clamp(2.2rem, 3.3vw, 3.35rem); font-weight: 900; letter-spacing: -.02em; line-height: 1.08; }
+    .hero p { max-width: 830px; margin-top: 14px; color: #cbd5e1; font-size: 15.5px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px; }
+    .pill { display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border: 1px solid rgba(203,213,225,.28); border-radius: 999px; background: rgba(255,255,255,.06); color: #e2e8f0; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .main { max-width: 1040px; padding: 32px 42px 120px; }
+    section { padding: 34px 38px 38px; margin-top: 26px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); box-shadow: 0 10px 32px rgba(17,24,39,.04); }
+    section:first-child { margin-top: 0; }
+    .kicker { color: var(--dim); font-size: 11px; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; }
+    h2 { margin-top: 4px; color: var(--strong); font-size: clamp(1.55rem, 2.3vw, 2.15rem); font-weight: 900; letter-spacing: -.015em; line-height: 1.18; }
+    h3 { margin: 22px 0 8px; color: var(--strong); font-size: 18px; font-weight: 900; }
+    h4 { margin: 18px 0 7px; color: var(--strong); font-size: 14.5px; font-weight: 900; }
+    .lead { margin-top: 8px; color: var(--muted); }
+    p + p { margin-top: 8px; }
+    ul { margin: 8px 0 0 20px; }
+    li { margin: 5px 0; }
+    strong { color: var(--strong); font-weight: 900; }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+    .card { border: 1px solid var(--line); border-radius: 8px; padding: 16px; background: linear-gradient(180deg, #fff 0%, #fbfcfe 100%); box-shadow: 0 1px 2px rgba(15,23,42,.03); }
+    .card b { display: block; margin-bottom: 5px; color: var(--strong); font-size: 14px; font-weight: 900; }
+    .card p { color: var(--muted); font-size: 13.5px; line-height: 1.58; }
+    .viewpoint { margin-top: 18px; padding: 18px 20px; border: 1px solid #d7dee8; border-radius: 10px; background: #fbfcfe; }
+    .viewpoint strong { display: block; margin-bottom: 10px; color: var(--strong); font-size: 15px; }
+    .viewpoint ol { margin: 0 0 0 20px; color: var(--text); font-weight: 800; }
+    .viewpoint li { margin: 6px 0; }
+    .visual { margin: 18px 0 20px; padding: 20px; border: 1px solid #d7dee8; border-radius: 10px; background: linear-gradient(135deg, #f8fafc 0%, #eef7f4 100%); }
+    .visual__title { margin-bottom: 14px; color: var(--strong); font-size: 14px; font-weight: 900; }
+    .visual-caption { margin-top: 12px; color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+    .leaderboard-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .leaderboard-card { min-width: 0; padding: 18px; border-radius: 10px; background: #111827; color: #e5e7eb; box-shadow: 0 18px 34px rgba(17,24,39,.18); }
+    .leaderboard-card h4 { margin: 0 0 12px; color: #a7f3d0; font-size: 16px; text-align: center; }
+    .leaderboard-card.relative-board h4 { color: #bfdbfe; }
+    .rank-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 74px; gap: 10px; align-items: center; margin-top: 8px; padding: 9px 12px; border-radius: 8px; background: rgba(255,255,255,.08); }
+    .rank-row span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-row.focus { background: rgba(245,158,11,.22); box-shadow: inset 0 0 0 1px rgba(245,158,11,.45); }
+    .board-desc { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(226,232,240,.18); color: #cbd5e1; font-size: 12.5px; line-height: 1.55; }
+    .rank-medal { color: #fbbf24; font-weight: 900; }
+    .rank-score { color: #93c5fd; text-align: right; font-weight: 900; }
+    .flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .node { padding: 11px 14px; border: 1px solid var(--line2); border-radius: 8px; background: #fff; color: var(--strong); font-weight: 900; box-shadow: 0 4px 14px rgba(17,24,39,.04); }
+    .node small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .arrow { color: var(--accent); font-weight: 900; }
+    .search-list { display: grid; gap: 8px; max-width: 560px; }
+    .search-item { display: flex; justify-content: space-between; gap: 12px; padding: 10px 13px; border-radius: 8px; background: #fff; border: 1px solid var(--line); }
+    .search-item b { color: var(--strong); }
+    .search-item span { color: var(--muted); font-size: 12px; }
+    .command-visual { margin: 12px 0 18px; padding: 15px; border: 1px solid #d7dee8; border-radius: 10px; background: #fbfcfe; }
+    .command-visual__title { margin-bottom: 10px; color: var(--strong); font-size: 13px; font-weight: 900; }
+    .command-flow { display: grid; gap: 8px; max-width: 680px; }
+    .command-row { display: grid; grid-template-columns: 42px minmax(0, 1fr) 150px; gap: 10px; align-items: center; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .command-row .rank { color: var(--dim); font-size: 12px; font-weight: 900; }
+    .command-row b { color: var(--strong); }
+    .command-row span:last-child { color: var(--muted); text-align: right; font-size: 12px; }
+    .command-row.selected { border-color: rgba(15,118,110,.28); background: #ecfdf5; }
+    .command-row.added { border-color: rgba(37,99,235,.28); background: #eff6ff; }
+    .command-row.removed { border-color: rgba(220,38,38,.28); background: #fef2f2; text-decoration: line-through; opacity: .72; }
+    .command-row .badge { justify-self: end; padding: 3px 7px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 11px; font-weight: 900; text-decoration: none; }
+    .command-row.removed .badge { background: #dc2626; }
+    .tag-map { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .tag-box { padding: 15px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+    .tag-box h4 { margin: 0 0 10px; color: var(--accent); }
+    .chip { display: inline-flex; margin: 4px 4px 0 0; padding: 5px 9px; border-radius: 999px; background: #ecfdf5; color: #065f46; font-size: 12px; font-weight: 900; }
+    .lottery { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; max-width: 620px; }
+    .ball { display: grid; place-items: center; min-height: 58px; border-radius: 50%; background: #fff; border: 2px solid #bfdbfe; color: var(--accent); font-weight: 900; }
+    .ball.pick { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+    .hash-demo { display: grid; grid-template-columns: 1.2fr auto 1fr; gap: 14px; align-items: center; margin-top: 16px; }
+    .hash-table { display: grid; gap: 8px; }
+    .hash-row { display: grid; grid-template-columns: 100px 1fr; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .hash-row b { color: var(--accent); }
+    .hash-row.pick { border-color: #f59e0b; background: #fffbeb; }
+    .result-card { padding: 14px; border-radius: 8px; border: 1px solid #fde68a; background: #fff7ed; color: #92400e; font-weight: 900; }
+    .sample-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+    .sample-box { padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .sample-box h4 { margin-top: 0; }
+    .ticket-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ticket { padding: 7px 9px; border-radius: 7px; background: #e2e8f0; color: #334155; font-size: 12px; font-weight: 900; }
+    .ticket.pick { background: #dcfce7; color: #166534; }
+    .ticket.dup { background: #fee2e2; color: #991b1b; }
+    .random-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0 18px; }
+    .random-card { padding: 15px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .random-card h4 { margin: 0 0 10px; }
+    .random-stack { display: grid; gap: 7px; margin-top: 10px; }
+    .random-step { padding: 8px 10px; border-radius: 8px; background: #f8fafc; border: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 800; }
+    .random-step.warn { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+    .bucket-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+    .bucket { min-height: 42px; display: grid; place-items: center; border-radius: 8px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 900; }
+    .bucket.pick { background: #dcfce7; border-color: #86efac; color: #166534; box-shadow: inset 0 0 0 2px rgba(22,101,52,.14); }
+    .count-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .count-card { padding: 15px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .count-card b { color: var(--strong); }
+    .count-card .mini-title { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .like-users { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+    .user-pill { padding: 6px 8px; border-radius: 999px; background: #ecfdf5; color: #047857; font-size: 12px; font-weight: 900; }
+    .unread-table { display: grid; gap: 6px; margin: 8px 0; }
+    .unread-row { display: flex; justify-content: space-between; padding: 7px 9px; border-radius: 7px; background: #f8fafc; font-size: 12px; font-weight: 800; }
+    .bits { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-top: 10px; }
+    .bit { padding: 5px 0; border-radius: 5px; background: #e2e8f0; text-align: center; font-size: 11px; font-weight: 900; }
+    .bit.on { background: #a7f3d0; color: #065f46; }
+    .bitmap-demo { margin: 12px 0 18px; padding: 15px; border: 1px solid #d7dee8; border-radius: 10px; background: #fbfcfe; }
+    .bitmap-title { margin-bottom: 10px; color: var(--strong); font-size: 13px; font-weight: 900; }
+    .bitmap-strip { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+    .bitmap-cell { min-height: 58px; padding: 6px 4px; border: 1px solid var(--line); border-radius: 8px; background: #fff; text-align: center; }
+    .bitmap-cell small { display: block; color: var(--dim); font-size: 10px; font-weight: 900; }
+    .bitmap-cell b { display: block; margin-top: 5px; color: var(--muted); font-size: 18px; }
+    .bitmap-cell.on { border-color: #86efac; background: #ecfdf5; }
+    .bitmap-cell.on b { color: #047857; }
+    .bitmap-cell.focus { box-shadow: inset 0 0 0 2px rgba(245,158,11,.45); background: #fffbeb; border-color: #fbbf24; }
+    .bitop-grid { display: grid; gap: 7px; margin-top: 10px; }
+    .bitop-row { display: grid; grid-template-columns: 120px repeat(5, minmax(0, 1fr)); gap: 6px; align-items: center; }
+    .bitop-label { color: var(--muted); font-size: 12px; font-weight: 900; }
+    .bitop-bit { padding: 6px 0; border-radius: 6px; background: #e2e8f0; text-align: center; font-size: 12px; font-weight: 900; }
+    .bitop-bit.on { background: #a7f3d0; color: #065f46; }
+    .bitop-row.result { padding-top: 7px; border-top: 1px dashed #cbd5e1; }
+    .hll-sketch { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; }
+    .registers { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+    .reg { height: 52px; border-radius: 6px; background: linear-gradient(180deg, #bfdbfe, #60a5fa); color: #0f172a; display: grid; place-items: end center; padding-bottom: 5px; font-size: 10px; font-weight: 900; }
+    .hll-flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 12px; align-items: stretch; }
+    .hll-card { padding: 15px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .hll-card h4 { margin: 0 0 10px; color: var(--accent); }
+    .hll-list { display: grid; gap: 7px; }
+    .hll-item { display: flex; justify-content: space-between; gap: 8px; padding: 7px 9px; border-radius: 8px; background: #f8fafc; color: var(--strong); font-size: 12px; font-weight: 900; }
+    .hll-item.dup { background: #fef2f2; color: #991b1b; }
+    .hll-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+    .hll-cell { min-height: 52px; display: grid; place-items: center; border-radius: 8px; background: linear-gradient(180deg, #bfdbfe, #60a5fa); color: #0f172a; font-size: 12px; font-weight: 900; }
+    .hll-result { display: grid; place-items: center; min-height: 110px; border: 1px dashed #0f766e; border-radius: 10px; background: #ecfdf5; color: #065f46; text-align: center; font-weight: 900; }
+    .hll-result b { display: block; color: #065f46; font-size: 26px; }
+    .map-box { position: relative; min-height: 260px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: linear-gradient(135deg, #dbeafe, #ecfdf5); }
+    .road { position: absolute; background: rgba(255,255,255,.85); box-shadow: 0 0 0 1px rgba(148,163,184,.35); }
+    .road.r1 { left: 8%; right: 8%; top: 46%; height: 20px; transform: rotate(-8deg); }
+    .road.r2 { top: 8%; bottom: 8%; left: 48%; width: 18px; transform: rotate(12deg); }
+    .pin { position: absolute; transform: translate(-50%, -50%); padding: 6px 9px; border-radius: 999px; background: #111827; color: #fff; font-size: 12px; font-weight: 900; }
+    .pin.user { left: 50%; top: 50%; background: #0f766e; }
+    .pin.p1 { left: 42%; top: 38%; }
+    .pin.p2 { left: 60%; top: 56%; }
+    .pin.p3 { left: 76%; top: 72%; background: #64748b; }
+    .radius { position: absolute; left: 50%; top: 50%; width: 170px; height: 170px; transform: translate(-50%, -50%); border: 3px dashed #0f766e; border-radius: 50%; background: rgba(15,118,110,.09); }
+    .geo-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 14px 0; }
+    .geo-card { padding: 15px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .geo-card h4 { margin-top: 0; }
+    .shape-stage { position: relative; height: 190px; margin-top: 10px; border-radius: 8px; background: linear-gradient(135deg, #e0f2fe, #ecfdf5); overflow: hidden; border: 1px solid #d7dee8; }
+    .shape-center { position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%); border-radius: 999px; background: #111827; box-shadow: 0 0 0 5px rgba(17,24,39,.12); }
+    .shape-circle { position: absolute; left: 50%; top: 50%; width: 122px; height: 122px; transform: translate(-50%, -50%); border: 3px dashed #0f766e; border-radius: 999px; background: rgba(15,118,110,.12); }
+    .shape-rect { position: absolute; left: 50%; top: 50%; width: 150px; height: 84px; transform: translate(-50%, -50%); border: 3px dashed #2563eb; background: rgba(37,99,235,.12); border-radius: 6px; }
+    .measure { position: absolute; color: #334155; font-size: 11px; font-weight: 900; }
+    .measure.top { left: 50%; top: 30px; transform: translateX(-50%); }
+    .measure.right { right: 18px; top: 50%; transform: translateY(-50%); }
+    .measure.left { left: 15px; top: 50%; transform: translateY(-50%); }
+    .measure.bottom { left: 50%; bottom: 22px; transform: translateX(-50%); }
+    .cmd { margin: 12px 0 14px; border: 1px solid #111827; border-radius: 8px; overflow: hidden; background: var(--term-bg); }
+    .cmd pre { padding: 14px 16px; color: var(--term-text); font-size: 13px; line-height: 1.55; white-space: pre; overflow-x: auto; }
+    .c-prompt { color: var(--term-blue); }
+    .c-result { color: var(--term-green); }
+    .c-comment { color: var(--term-dim); }
+    .note { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); color: var(--muted); font-size: 13.5px; }
+    .note strong { display: block; margin-bottom: 3px; }
+    .note--warn { border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.09); }
+    .note--danger { border-color: rgba(220,38,38,.25); background: rgba(220,38,38,.07); }
+    .inline-cmd { display: inline-block; padding: 0 5px; border-radius: 4px; background: rgba(15,23,42,.06); color: var(--strong); font-family: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace; font-size: .9em; font-weight: 800; white-space: nowrap; word-spacing: -.18em; }
+    .case-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    .case-card { padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .case-card h4 { margin-top: 0; color: var(--accent); }
+    .case-visual-img { display: block; width: 100%; max-width: 980px; margin: 18px auto 22px; border: 1px solid var(--line); border-radius: 12px; background: #eefaf7; box-shadow: 0 10px 32px rgba(17,24,39,.04); }
+    .case-flow { display: grid; gap: 10px; margin: 14px 0 18px; }
+    .case-step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; padding: 13px 15px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfe; }
+    .case-step-num { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 12px; font-weight: 900; }
+    .case-step b { color: var(--strong); }
+    .case-step p { margin-top: 3px; color: var(--muted); font-size: 13px; }
+    .path-text { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.5; word-break: break-all; }
+    .compare-table th:first-child, .compare-table td:first-child { width: 150px; white-space: nowrap; }
+    .compare-table th:nth-child(2), .compare-table td:nth-child(2) { width: 34%; }
+    .compare-table code { white-space: normal; word-break: keep-all; }
+    .perf-table th, .perf-table td { text-align: center; vertical-align: middle; }
+    .perf-table th:first-child, .perf-table td:first-child { text-align: left; }
+    .perf-table td:nth-child(2), .perf-table td:nth-child(3), .perf-table td:nth-child(4) { font-variant-numeric: tabular-nums; }
+    .summary-line { margin-top: 16px; padding: 16px 18px; border-radius: 10px; background: #111827; color: #e5e7eb; font-weight: 900; }
+    .summary-line strong { color: #a7f3d0; }
+    .creator-footer { display: flex; justify-content: flex-end; margin-top: 28px; padding: 10px 0 0; }
+    .creator-footer a { display: inline-flex; opacity: .58; transition: opacity .15s ease, transform .15s ease; }
+    .creator-footer a:hover { opacity: .9; transform: translateY(-2px); }
+    .creator-footer img { width: min(420px, 100%); height: auto; filter: grayscale(.08); }
+    details.box { margin-top: 15px; border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; box-shadow: 0 1px 4px rgba(15,23,42,.04); }
+    details.box[open] { border-color: var(--line2); box-shadow: var(--shadow); }
+    details.box > summary { display: flex; align-items: center; gap: 12px; padding: 16px 19px; cursor: pointer; list-style: none; color: var(--strong); font-weight: 900; }
+    details.box > summary::-webkit-details-marker { display: none; }
+    details.box > summary::before { content: ''; width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: .2s ease; }
+    details.box[open] > summary::before { transform: rotate(45deg); }
+    .tag { margin-left: auto; color: var(--dim); font-size: 10.5px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+    .box__body { padding: 0 20px 20px 40px; }
+    table { width: 100%; margin-top: 14px; border-collapse: collapse; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 13.5px; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--soft2); color: var(--strong); font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .cmd-name { margin-top: 14px; padding: 13px 15px; border: 1px solid #d7dee8; border-radius: 8px; background: #fbfcfe; color: var(--muted); font-size: 12.5px; }
+    .cmd-name strong { display: block; margin-bottom: 6px; color: var(--strong); font-size: 13px; }
+    .cmd-name code { color: var(--accent); font-weight: 900; }
+    .cmd-name ul { margin-top: 6px; }
+    .cmd-name li { margin: 3px 0; }
+    .script { margin-top: 16px; padding: 20px; border: 1px solid var(--line2); border-radius: 8px; background: #fff; }
+    .script p { font-size: 14px; }
+    .script h4 { color: var(--accent); }
+    .to-top {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 20;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 42px;
+      padding: 0 15px;
+      border: 1px solid rgba(15,118,110,.25);
+      border-radius: 999px;
+      background: #0f766e;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+      text-decoration: none;
+      box-shadow: 0 12px 28px rgba(15,118,110,.28);
+      transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    .to-top:hover {
+      background: #115e59;
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(15,118,110,.34);
+    }
+    @media (max-width: 1180px) {
+      .doc { display: block; }
+      .toc { display: none; }
+      .hero { margin: 18px 18px 0; }
+      .main { padding: 24px 18px 90px; }
+    }
+    @media (max-width: 760px) {
+      .hero, .main { padding-left: 22px; padding-right: 22px; }
+      .cards { grid-template-columns: 1fr; }
+      .tag-map, .count-grid, .hll-sketch, .hll-flow, .leaderboard-split, .hash-demo, .sample-grid, .geo-compare, .random-compare, .case-grid { grid-template-columns: 1fr; }
+      .lottery { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .command-row { grid-template-columns: 34px minmax(0, 1fr); }
+      .command-row span:last-child, .command-row .badge { grid-column: 2; justify-self: start; text-align: left; }
+      .box__body { padding-left: 20px; }
+    }
+  </style>
+</head>
+<body>
+<a class="to-top" href="#top" aria-label="맨 위로 이동">↑ 맨 위로</a>
+<div class="app">
+  <main class="doc">
+    <nav class="toc">
+      <div class="toc__brand">Redis Chapter 4</div>
+      <a href="#intro"><small>00</small>발표 핵심</a>
+      <a href="#leaderboard"><small>01</small>Sorted Set 리더보드</a>
+      <a href="#recent"><small>02</small>최근 검색 기록</a>
+      <a href="#tags"><small>03</small>Set 태그 기능</a>
+      <a href="#random"><small>04</small>랜덤 데이터 추출</a>
+      <a href="#counting"><small>05</small>다양한 카운팅</a>
+      <a href="#hll"><small>06</small>HyperLogLog 미터링</a>
+      <a href="#geo"><small>07</small>Geospatial 위치 기반 앱</a>
+      <a href="#popular-region-case"><small>08</small>실무 사례 인기 지역</a>
+    </nav>
+
+    <div>
+      <header class="hero" id="top">
+        <div class="eyebrow">개발자를 위한 레디스 · 4장</div>
+        <h1>레디스 자료 구조 활용 사례</h1>
+      </header>
+
+      <div class="main">
+        <section id="intro">
+          <div class="kicker">00 · Opening</div>
+          <h2>4장의 핵심은 “요구사항에 맞는 Redis 자료 구조 선택하기”</h2>
+          <div class="viewpoint">
+            <strong>이 장을 읽으며 바라본 관점</strong>
+            <ol>
+              <li>왜 레디스를 사용하면 좋은 상황인가.</li>
+              <li>왜 이 자료 구조인가.</li>
+            </ol>
+          </div>
+          <p class="lead">Redis는 단순히 빠른 캐시가 아니라, 정렬·집합·카운팅·근사 계산·위치 탐색을 자료 구조 명령으로 처리할 수 있는 서버이다.</p>
+          <div class="cards">
+            <div class="card"><b>정렬이 필요한가?</b><p>리더보드와 최근 검색 기록은 Sorted Set으로 생각한다.</p></div>
+            <div class="card"><b>집합 관계인가?</b><p>태그와 좋아요처럼 중복 제거가 중요하면 Set을 본다.</p></div>
+            <div class="card"><b>숫자를 세는 문제인가?</b><p>정확도, 필드별 분리, 메모리 효율에 따라 Set, Hash, Bitmap, HLL로 나뉜다.</p></div>
+            <div class="card"><b>좌표 기반 검색인가?</b><p>근처 장소나 사용자 탐색은 Geospatial 명령으로 처리할 수 있다.</p></div>
+          </div>
+          <table>
+            <thead><tr><th>기능</th><th>RDB로 구현할 때 부담</th><th>Redis 자료 구조가 맞는 이유</th></tr></thead>
+            <tbody>
+              <tr><td>실시간 리더보드</td><td>점수 변경마다 정렬과 순위 계산이 반복된다.</td><td><strong>Sorted Set</strong>은 member를 중복 없이 보관하고 score 기준 정렬 상태를 유지한다.</td></tr>
+              <tr><td>최근 검색 기록</td><td>중복 검색어 확인, 최신순 정렬, 오래된 기록 삭제 로직이 필요하다.</td><td><strong>Sorted Set</strong>은 검색어를 member로, 검색 시간을 score로 두어 중복 없는 최신순 목록을 만든다.</td></tr>
+              <tr><td>태그 기능</td><td>태그-게시물 매핑 테이블 조인과 <code>GROUP BY/HAVING</code>이 필요하다.</td><td><strong>Set</strong>은 중복 없는 관계와 교집합 연산을 직접 제공한다.</td></tr>
+              <tr><td>랜덤 추출</td><td><code>ORDER BY RAND()</code>는 후보군을 읽고 섞는 비용이 크다.</td><td><strong>Hash / Set / Sorted Set</strong> 내부에서 무작위 샘플을 바로 뽑을 수 있다.</td></tr>
+              <tr><td>카운팅</td><td>좋아요, 읽지 않은 수, DAU를 같은 방식으로 세면 메모리와 정확도 문제가 생긴다.</td><td><strong>Set / Hash / Bitmap / HLL</strong> 중 필요한 성질에 맞춰 선택한다.</td></tr>
+              <tr><td>위치 기반 검색</td><td>좌표 거리 계산과 주변 후보 필터링을 애플리케이션에서 직접 처리해야 한다.</td><td><strong>Geospatial</strong>은 좌표 저장과 반경/박스 검색을 명령으로 제공한다.</td></tr>
+            </tbody>
+          </table>
+          <div class="note">
+            <strong>Sorted Set이 리더보드와 최근 검색 기록에 모두 쓰이는 이유</strong>
+            두 기능은 겉보기에는 다르지만 공통적으로 “중복 없는 값(member)을 숫자(score) 기준으로 계속 정렬해야 하는 문제”이다. 리더보드는 score가 점수이고, 최근 검색 기록은 score가 검색 시간이다. 그래서 둘 다 Sorted Set이 자연스럽다.
+          </div>
+          <div class="cmd-name">
+Redis 커맨드는 자료 구조 접두어와 동작 단어가 합쳐진 이름이 많다. Set 명령은 이미 <code>S</code>를 쓰기 때문에, Redis는 Sorted Set을 <code>zset</code>으로 줄여 부르고 명령어 접두어로 <code>Z</code>를 사용한다. 예를 들어 <code>ZREVRANGE</code>는 <code>Z</code>(Sorted Set) + <code>REV</code>(Reverse, 역순) + <code>RANGE</code>(범위 조회)로 읽을 수 있다. 즉, “Sorted Set에서 역순으로 범위를 조회한다”는 뜻이다.
+          </div>
+        </section>
+
+        <section id="leaderboard">
+          <div class="kicker">01 · Sorted Set</div>
+          <h2>Sorted Set을 이용한 실시간 리더보드</h2>
+          <h3>상황</h3>
+          <p>게임이나 학습 애플리케이션에서는 사용자의 점수를 기반으로 실시간 순위표를 제공해야 한다.<br />전체 사용자를 정렬해 상위권을 보여주는 <strong>절대적 리더보드</strong>와, 특정 사용자 주변 순위나 그룹 내 순위를 보여주는 <strong>상대적 리더보드</strong>가 있다.</p>
+          <p>사용자가 늘어날수록 가공할 데이터는 커지고, 점수 변경은 실시간으로 반영되어야 하며, 그룹별·기간별 통계도 필요하다.</p>
+          <div class="visual">
+            <div class="visual__title">절대적 리더보드와 상대적 리더보드는 보여주는 범위가 다르다</div>
+            <div class="leaderboard-split">
+              <div class="leaderboard-card">
+                <h4>절대적 리더보드 · 전체 TOP 4</h4>
+                <div class="rank-row"><span class="rank-medal">1위</span><span>player:234</span><span class="rank-score">400점</span></div>
+                <div class="rank-row"><span class="rank-medal">2위</span><span>player:24</span><span class="rank-score">357점</span></div>
+                <div class="rank-row"><span class="rank-medal">3위</span><span>player:143</span><span class="rank-score">199점</span></div>
+                <div class="rank-row"><span class="rank-medal">4위</span><span>player:286</span><span class="rank-score">28점</span></div>
+                <p class="board-desc">전체 사용자 중 상위 N명을 보여주는 방식이다. “누가 제일 높은가”가 핵심이다.</p>
+              </div>
+              <div class="leaderboard-card relative-board">
+                <h4>상대적 리더보드 · 내 주변 순위</h4>
+                <div class="rank-row"><span class="rank-medal">18위</span><span>player:881</span><span class="rank-score">203점</span></div>
+                <div class="rank-row focus"><span class="rank-medal">19위</span><span>나 · player:143</span><span class="rank-score">199점</span></div>
+                <div class="rank-row"><span class="rank-medal">20위</span><span>player:602</span><span class="rank-score">188점</span></div>
+                <div class="rank-row"><span class="rank-medal">그룹</span><span>스터디 A반 기준</span><span class="rank-score">5위</span></div>
+                <p class="board-desc">특정 사용자나 그룹을 기준으로 주변 순위를 보여주는 방식이다. “내 위치가 어디인가”가 핵심이다.</p>
+              </div>
+            </div>
+          </div>
+          <h3>왜 Sorted Set일까?</h3>
+          <p>관계형 데이터베이스로 구현하면 점수 정렬 자체가 큰 부하가 될 수 있다. 반면 Sorted Set은 데이터가 저장될 때부터 score 순으로 정렬되므로 매번 정렬을 다시 할 필요가 없다.</p>
+          <details class="box" open>
+            <summary>핵심 커맨드<span class="tag">ZADD · ZREVRANGE · ZINCRBY · ZUNIONSTORE</span></summary>
+            <div class="box__body">
+              <div class="cmd-name">
+        <ul>
+                  <li><code>ZADD</code> = <code>Z</code>(Sorted Set) + <code>ADD</code>(추가)</li>
+                  <li><code>ZREVRANGE</code> = <code>Z</code>(Sorted Set) + <code>REV</code>(역순) + <code>RANGE</code>(범위)</li>
+                  <li><code>ZINCRBY</code> = <code>Z</code>(Sorted Set) + <code>INCR BY</code>(값만큼 증가)</li>
+                  <li><code>ZUNIONSTORE</code> = <code>Z</code>(Sorted Set) + <code>UNION</code>(합집합/합산) + <code>STORE</code>(저장)</li>
+                </ul>
+              </div>
+              <h4>데이터 저장 — ZADD</h4>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> ZADD daily-score:220817 28 player:286
+<span class="c-result">(integer) 1</span>
+
+<span class="c-prompt">&gt;</span> ZADD daily-score:220817 400 player:234 357 player:24 199 player:143
+<span class="c-result">(integer) 3</span></pre></div>
+              <h4>조회 — ZRANGE / ZREVRANGE</h4>
+              <p><code>ZRANGE</code>는 score 오름차순, <code>ZREVRANGE</code>는 내림차순으로 반환한다.</p>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> ZREVRANGE daily-score:220817 0 2 WITHSCORES
+<span class="c-result">1) "player:234"
+2) "400"
+3) "player:24"
+4) "357"
+5) "player:143"
+6) "199"</span></pre></div>
+              <h4>스코어 업데이트 — ZADD / ZINCRBY</h4>
+              <p>같은 아이템에 새 score를 저장하면 score만 업데이트되고 자동 재정렬된다. 증감 연산은 <code>ZINCRBY</code>로 처리한다.</p>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> ZINCRBY daily-score:220817 100 player:24
+<span class="c-result">"457"</span></pre></div>
+              <h4>랭킹 합산 — ZUNIONSTORE</h4>
+              <p><code>ZUNIONSTORE</code>는 여러 Sorted Set을 합쳐 새 Sorted Set으로 저장한다. 일별 점수 키를 합치면 주간 리더보드를 만들 수 있다.</p>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> ZUNIONSTORE weekly-score:2208-3 3 daily-score:220815 daily-score:220816 daily-score:220817
+<span class="c-result">(integer) 4</span>
+
+<span class="c-prompt">&gt;</span> ZUNIONSTORE weekly-score:2208-3 3 daily-score:220815 daily-score:220816 daily-score:220817 WEIGHTS 1 2 1
+<span class="c-result">(integer) 4</span></pre></div>
+              <p><code>WEIGHTS 1 2 1</code>은 첫 번째 키의 점수는 1배, 두 번째 키의 점수는 2배, 세 번째 키의 점수는 1배로 반영한다는 뜻이다. 예를 들어 8월 16일에 “점수 두 배 이벤트”가 있었다면, 해당 날짜의 리더보드만 2배 가중치로 합산할 수 있다.</p>
+              <table>
+                <thead><tr><th>원본 키</th><th>가중치</th><th>합산 의미</th></tr></thead>
+                <tbody>
+                  <tr><td><code>daily-score:220815</code></td><td>1</td><td>그날 점수를 그대로 반영한다.</td></tr>
+                  <tr><td><code>daily-score:220816</code></td><td>2</td><td>이벤트 날짜라 점수를 두 배로 반영한다.</td></tr>
+                  <tr><td><code>daily-score:220817</code></td><td>1</td><td>그날 점수를 그대로 반영한다.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </section>
+
+        <section id="recent">
+          <div class="kicker">02 · Sorted Set</div>
+          <h2>Sorted Set을 이용한 최근 검색 기록</h2>
+          <h3>상황</h3>
+          <p>쇼핑몰에서 사용자별 최근 검색 키워드를 5개까지 보여주는 기능이다. 사용자별로 다른 키워드를 보여줘야 하고, 검색 내역은 중복 제거되어야 하며, 가장 최근 검색한 5개만 남아야 한다.</p>
+          <div class="visual">
+            <div class="visual__title">같은 검색어는 하나만 남고, 최신순으로 올라온다</div>
+            <div class="search-list">
+              <div class="search-item"><b>버킷햇</b><span>score = 20221106152734</span></div>
+              <div class="search-item"><b>코듀로이</b><span>score = 20221106152010</span></div>
+              <div class="search-item"><b>머플러</b><span>score = 20221106151042</span></div>
+              <div class="search-item"><b>패딩</b><span>score = 20221106150218</span></div>
+              <div class="search-item"><b>부츠</b><span>score = 20221106145903</span></div>
+            </div>
+            <p class="visual-caption">오른쪽 회색 값은 Sorted Set의 <code>score</code>이다. 최근 검색 기록에서는 검색 시각을 score로 저장하므로, score가 클수록 더 최근 검색어로 위에 배치된다.</p>
+          </div>
+          <h3>왜 Sorted Set일까?</h3>
+          <p>검색 시간을 score로 사용하면 검색 시점 순으로 정렬할 수 있고, 같은 키워드는 member가 같기 때문에 중복이 생기지 않는다.</p>
+          <details class="box" open>
+            <summary>핵심 커맨드<span class="tag">ZADD · ZREVRANGE · ZREMRANGEBYRANK</span></summary>
+            <div class="box__body">
+              <div class="cmd-name">
+        <code>ZREMRANGEBYRANK</code>는 <code>Z</code>(Sorted Set) + <code>REM</code>(Remove, 삭제) + <code>RANGE</code>(범위) + <code>BY RANK</code>(순위 기준)이다. 즉, “Sorted Set에서 순위 범위에 해당하는 값을 삭제한다”는 뜻이다.
+              </div>
+              <h4>데이터 저장 — ZADD</h4>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> ZADD search-keyword:123 20221106143501 코듀로이
+<span class="c-result">(integer) 1</span></pre></div>
+              <div class="command-visual">
+                <div class="command-visual__title">ZADD 결과: 검색어가 member로, 검색 시간이 score로 저장된다</div>
+                <div class="command-flow">
+                  <div class="command-row added"><span class="rank">추가</span><b>코듀로이</b><span>score 20221106143501</span></div>
+                </div>
+                <p class="visual-caption">같은 검색어를 다시 <code>ZADD</code>하면 새 줄이 하나 더 생기는 것이 아니라, 기존 member의 score만 최신 시간으로 바뀐다.</p>
+              </div>
+              <h4>최근 5개 조회 — ZREVRANGE</h4>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> ZREVRANGE search-keyword:123 0 4 WITHSCORES</pre></div>
+              <div class="command-visual">
+                <div class="command-visual__title">ZREVRANGE 0 4 결과: score가 큰 순서로 0번부터 4번까지, 총 5개만 선택된다</div>
+                <div class="command-flow">
+                  <div class="command-row selected"><span class="rank">0</span><b>버킷햇</b><span class="badge">조회됨</span></div>
+                  <div class="command-row selected"><span class="rank">1</span><b>코듀로이</b><span class="badge">조회됨</span></div>
+                  <div class="command-row selected"><span class="rank">2</span><b>머플러</b><span class="badge">조회됨</span></div>
+                  <div class="command-row selected"><span class="rank">3</span><b>패딩</b><span class="badge">조회됨</span></div>
+                  <div class="command-row selected"><span class="rank">4</span><b>부츠</b><span class="badge">조회됨</span></div>
+                  <div class="command-row"><span class="rank">5</span><b>스니커즈</b><span>범위 밖</span></div>
+                </div>
+                <p class="visual-caption"><code>0 4</code>는 “0번부터 4번까지”라서 개수로는 5개이다. 6번째 데이터는 존재해도 조회 결과에는 포함되지 않는다.</p>
+              </div>
+              <h4>5개 초과 데이터 삭제 — ZREMRANGEBYRANK</h4>
+              <p>음수 인덱스를 활용하면 매번 아이템 개수를 확인하지 않고도 5개 이상 저장되지 않도록 강제할 수 있다. 음수 인덱스는 마지막 값이 <code>-1</code>이고 역순으로 증가하는 값이다. 데이터가 6개일 때 가장 오래된 데이터의 음수 인덱스는 <code>-6</code>이다.</p>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> ZADD search-keyword:123 20221106152734 버킷햇
+<span class="c-result">(integer) 1</span>
+
+<span class="c-prompt">&gt;</span> ZREMRANGEBYRANK search-keyword:123 -6 -6
+<span class="c-result">(integer) 1</span></pre></div>
+              <div class="command-visual">
+                <div class="command-visual__title">ZREMRANGEBYRANK -6 -6 결과: 6개가 되는 순간 가장 오래된 1개만 삭제된다</div>
+                <div class="command-flow">
+                  <div class="command-row selected"><span class="rank">-1</span><b>버킷햇</b><span>가장 최신</span></div>
+                  <div class="command-row selected"><span class="rank">-2</span><b>코듀로이</b><span>유지</span></div>
+                  <div class="command-row selected"><span class="rank">-3</span><b>머플러</b><span>유지</span></div>
+                  <div class="command-row selected"><span class="rank">-4</span><b>패딩</b><span>유지</span></div>
+                  <div class="command-row selected"><span class="rank">-5</span><b>부츠</b><span>유지</span></div>
+                  <div class="command-row removed"><span class="rank">-6</span><b>스니커즈</b><span class="badge">삭제</span></div>
+                </div>
+                <p class="visual-caption"><code>-6 -6</code>은 삭제 시작 위치와 끝 위치가 모두 <code>-6</code>이라는 뜻이다. 따라서 6번째, 즉 가장 오래된 데이터 하나만 제거된다.</p>
+              </div>
+              <p><code>ZADD</code> 직후 항상 <code>-6</code>번째 인덱스를 삭제하는 로직을 추가하면, 6개 이상이 되는 순간 가장 오래된 데이터가 자동으로 제거된다. 아이템이 5개 이하일 때는 <code>-6</code> 인덱스가 존재하지 않으므로 영향을 주지 않는다.</p>
+            </div>
+          </details>
+        </section>
+
+        <section id="tags">
+          <div class="kicker">03 · Set</div>
+          <h2>Set을 이용한 태그 기능</h2>
+          <h3>상황</h3>
+          <p>블로그 게시물에 태그를 추가하고, 특정 태그 또는 여러 태그를 포함한 게시물 목록을 조회해야 한다.</p>
+          <div class="visual">
+            <div class="visual__title">게시물에서 태그를 보고, 태그에서 게시물을 찾는다</div>
+            <div class="tag-map">
+              <div class="tag-box">
+                <h4>게시물 → 태그</h4>
+                <p><strong>post:47</strong></p>
+                <span class="chip">IT</span><span class="chip">REDIS</span><span class="chip">DataStore</span>
+                <p style="margin-top:12px;"><strong>post:53</strong></p>
+                <span class="chip">DataStore</span><span class="chip">IT</span><span class="chip">MySQL</span>
+              </div>
+              <div class="tag-box">
+                <h4>태그 → 게시물</h4>
+                <p><strong>tag:IT:posts</strong></p>
+                <span class="chip">post:22</span><span class="chip">post:47</span><span class="chip">post:53</span>
+                <p style="margin-top:12px;"><strong>tag:DataStore:posts</strong></p>
+                <span class="chip">post:47</span><span class="chip">post:53</span>
+              </div>
+            </div>
+          </div>
+          <h3>왜 Set일까?</h3>
+          <p>관계형 데이터베이스로 태그 기능을 구현하려면 보통 태그 테이블과 태그-게시물 관계 테이블이 필요하다. “특정 태그들을 모두 포함한 게시물 조회”는 <code>GROUP BY</code> + <code>HAVING</code> 절로 처리해야 하는데, 데이터가 많아지면 데이터베이스에 부하가 생긴다.</p>
+          <p>Set은 중복 없이 저장되고 교집합·합집합 같은 집합 연산을 빠르게 수행한다. 태그처럼 “여러 값 사이의 포함 관계”를 다루는 기능에 잘 맞는다.</p>
+          <details class="box" open>
+            <summary>핵심 커맨드<span class="tag">SADD · SMEMBERS · SINTER</span></summary>
+            <div class="box__body">
+              <div class="cmd-name">
+        <ul>
+                  <li><code>SADD</code> = <code>S</code>(Set) + <code>ADD</code>(추가)</li>
+                  <li><code>SMEMBERS</code> = <code>S</code>(Set) + <code>MEMBERS</code>(멤버 목록)</li>
+                  <li><code>SINTER</code> = <code>S</code>(Set) + <code>INTER</code>(Intersection, 교집합)</li>
+                </ul>
+              </div>
+              <h4>양방향 인덱싱</h4>
+              <p>태그 기능은 조회 방향이 두 가지이다. <code>post:47:tags</code>는 “47번 게시물에 어떤 태그가 붙어 있는가”를 확인하기 위한 Set이다. 반대로 <code>tag:IT:posts</code>는 “IT 태그가 붙은 게시물이 무엇인가”를 확인하기 위한 Set이다.</p>
+              <p>즉, 같은 관계를 <strong>게시물 → 태그</strong> 방향과 <strong>태그 → 게시물</strong> 방향으로 모두 저장하는 구조이다. 저장 공간은 조금 더 쓰지만, 게시물 상세 화면과 태그 검색 화면을 모두 빠르게 처리할 수 있다.</p>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> SADD post:47:tags IT REDIS DataStore
+<span class="c-result">(integer) 3</span>
+
+<span class="c-prompt">&gt;</span> SADD post:53:tags DataStore IT MySQL
+<span class="c-result">(integer) 3</span>
+
+<span class="c-prompt">&gt;</span> SADD tag:DataStore:posts 53 47
+<span class="c-result">(integer) 2</span>
+
+<span class="c-prompt">&gt;</span> SADD tag:IT:posts 22 47 53
+<span class="c-result">(integer) 3</span></pre></div>
+              <table>
+                <thead>
+                  <tr><th>키</th><th>저장된 값</th><th>의미</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>post:47:tags</code></td><td><code>{ IT, REDIS, DataStore }</code></td><td>47번 게시물에 붙은 태그 목록이다.</td></tr>
+                  <tr><td><code>post:53:tags</code></td><td><code>{ DataStore, IT, MySQL }</code></td><td>53번 게시물에 붙은 태그 목록이다.</td></tr>
+                  <tr><td><code>tag:IT:posts</code></td><td><code>{ 22, 47, 53 }</code></td><td>IT 태그가 붙은 게시물 목록이다.</td></tr>
+                  <tr><td><code>tag:DataStore:posts</code></td><td><code>{ 47, 53 }</code></td><td>DataStore 태그가 붙은 게시물 목록이다.</td></tr>
+                </tbody>
+              </table>
+              <div class="note">
+                <strong>핵심</strong>
+                <code>post:{id}:tags</code>는 게시물 상세 화면에서 사용하고, <code>tag:{name}:posts</code>는 태그 검색 화면에서 사용한다. 두 방향을 함께 저장해야 조회가 단순해진다.
+              </div>
+              <h4>특정 태그 조회 — SMEMBERS</h4>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> SMEMBERS tag:IT:posts
+<span class="c-result">1) "22"
+2) "47"
+3) "53"</span></pre></div>
+              <h4>여러 태그를 모두 포함한 게시물 — SINTER</h4>
+              <p>“특정 태그들을 모두 포함한 게시물 조회”는 <code>SINTER</code>로 표현할 수 있다. 예를 들어 IT 태그 게시물 Set과 DataStore 태그 게시물 Set의 교집합을 구하면, 두 태그를 모두 가진 게시물만 남는다.</p>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> SINTER tag:IT:posts tag:DataStore:posts
+<span class="c-result">1) "47"
+2) "53"</span></pre></div>
+            </div>
+          </details>
+        </section>
+
+        <section id="random">
+          <div class="kicker">04 · Random</div>
+          <h2>랜덤 데이터 추출</h2>
+          <h3>상황</h3>
+          <p>게임 유저 랜덤 매핑, 이벤트 당첨자 추첨, 가챠 아이템 추출처럼 후보군에서 무작위 데이터를 뽑아야 한다.</p>
+          <div class="visual">
+            <div class="visual__title">전체 후보 중 일부를 무작위로 뽑는다</div>
+            <div class="lottery">
+              <div class="ball">u1</div>
+              <div class="ball pick">u2<br />당첨</div>
+              <div class="ball">u3</div>
+              <div class="ball pick">u4<br />당첨</div>
+              <div class="ball">u5</div>
+            </div>
+          </div>
+          <h3>왜 레디스가 유리할까?</h3>
+          <p>관계형 데이터베이스의 <code>ORDER BY RAND()</code>는 조건에 맞는 행을 읽고 정렬한 뒤 추출하므로 데이터가 많아지면 부하가 크다. Redis는 자료 구조 내부에서 랜덤 추출 명령을 제공하므로 랜덤 데이터를 <code>O(1)</code>의 시간 복잡도로 추출할 수 있다.</p>
+          <h3>왜 O(1)일까?</h3>
+          <p>Redis는 Hash, Set, Sorted Set 같은 자료 구조를 메모리 안에 해시 테이블이나 인덱스 형태로 들고 있다. 그래서 전체 후보를 매번 섞거나 정렬하지 않고, 내부 테이블의 임의 위치에서 바로 필드나 멤버를 고를 수 있다. 이 때문에 단건 랜덤 추출은 후보 수가 늘어나도 거의 일정한 비용으로 처리된다.</p>
+          <div class="random-compare">
+            <div class="random-card">
+              <h4>RDB에서 흔한 방식</h4>
+              <div class="random-stack">
+                <div class="random-step">1. 조건에 맞는 후보 행을 읽는다</div>
+                <div class="random-step">2. 각 행에 랜덤 값을 붙인다</div>
+                <div class="random-step warn">3. 랜덤 값 기준으로 정렬한다</div>
+                <div class="random-step warn">4. 앞에서 필요한 개수만 가져온다</div>
+              </div>
+              <p class="visual-caption">후보가 많아질수록 읽고 섞고 정렬하는 비용이 함께 커진다.</p>
+            </div>
+            <div class="random-card">
+              <h4>Redis 랜덤 추출</h4>
+              <div class="bucket-grid">
+                <div class="bucket">id:134</div>
+                <div class="bucket">id:245</div>
+                <div class="bucket pick">id:4615</div>
+                <div class="bucket">id:892</div>
+                <div class="bucket">id:77</div>
+                <div class="bucket">id:901</div>
+                <div class="bucket">id:120</div>
+                <div class="bucket">id:333</div>
+              </div>
+              <p class="visual-caption">내부 테이블의 임의 위치를 바로 선택한다. 단건 추출은 전체를 정렬하지 않는다.</p>
+            </div>
+          </div>
+          <details class="box" open>
+            <summary>핵심 커맨드<span class="tag">RANDOMKEY · HRANDFIELD · SRANDMEMBER · ZRANDMEMBER</span></summary>
+            <div class="box__body">
+              <div class="cmd-name">
+        <ul>
+                  <li><code>RANDOMKEY</code> = 무작위 key 반환</li>
+                  <li><code>HRANDFIELD</code> = <code>H</code>(Hash) + <code>RAND</code>(Random) + <code>FIELD</code>(필드)</li>
+                  <li><code>SRANDMEMBER</code> = <code>S</code>(Set) + <code>RAND</code>(Random) + <code>MEMBER</code>(멤버)</li>
+                  <li><code>ZRANDMEMBER</code> = <code>Z</code>(Sorted Set) + <code>RAND</code>(Random) + <code>MEMBER</code>(멤버)</li>
+                </ul>
+              </div>
+              <ul>
+                <li><code>RANDOMKEY</code> — 전체 키 중 무작위 하나 반환</li>
+                <li><code>HRANDFIELD</code> — Hash에서 랜덤 필드 추출</li>
+                <li><code>SRANDMEMBER</code> — Set에서 랜덤 멤버 추출</li>
+                <li><code>ZRANDMEMBER</code> — Sorted Set에서 랜덤 멤버 추출</li>
+              </ul>
+              <div class="hash-demo">
+                <div class="hash-table">
+                  <div class="hash-row"><b>id:134</b><span>Joy</span></div>
+                  <div class="hash-row pick"><b>id:4615</b><span>Jinnji</span></div>
+                  <div class="hash-row"><b>id:892</b><span>Mina</span></div>
+                </div>
+                <div class="arrow">→</div>
+                <div class="result-card">
+                  HRANDFIELD<br />
+                  결과: id:4615<br />
+                  WITHVALUES: Jinnji
+                </div>
+              </div>
+              <p class="visual-caption"><code>HRANDFIELD user:hash</code>는 Hash의 필드 이름만 무작위로 반환한다. <code>WITHVALUES</code>를 붙이면 선택된 필드의 값까지 함께 반환한다.</p>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> HRANDFIELD user:hash
+<span class="c-result">"id:4615"</span>
+
+<span class="c-prompt">&gt;</span> HRANDFIELD user:hash 1 WITHVALUES
+<span class="c-result">1) "id:4615"
+2) "Jinnji"</span></pre></div>
+              <div class="sample-grid">
+                <div class="sample-box">
+                  <h4>COUNT가 양수일 때</h4>
+                  <p><code>HRANDFIELD user:hash 3</code></p>
+                  <div class="ticket-row"><span class="ticket pick">id:134</span><span class="ticket pick">id:4615</span><span class="ticket pick">id:892</span></div>
+                  <p class="visual-caption">중복 없이 서로 다른 필드를 최대 COUNT개 반환한다.</p>
+                </div>
+                <div class="sample-box">
+                  <h4>COUNT가 음수일 때</h4>
+                  <p><code>HRANDFIELD user:hash -3</code></p>
+                  <div class="ticket-row"><span class="ticket dup">id:134</span><span class="ticket dup">id:134</span><span class="ticket pick">id:4615</span></div>
+                  <p class="visual-caption">뽑은 값을 다시 후보군에 넣는 방식처럼 동작해 같은 필드가 여러 번 나올 수 있다.</p>
+                </div>
+              </div>
+              <div class="note">
+                <strong>COUNT 옵션의 양수/음수 차이</strong>
+                양수는 중복되지 않는 랜덤 데이터, 음수는 중복될 수 있는 랜덤 데이터를 반환한다. <code>SRANDMEMBER</code>, <code>ZRANDMEMBER</code>도 같은 방식으로 이해하면 된다.
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section id="counting">
+          <div class="kicker">05 · Counting</div>
+          <h2>레디스의 다양한 카운팅 방법</h2>
+          <h3>1. 좋아요 처리하기</h3>
+          <div class="visual">
+            <div class="visual__title">좋아요는 “누가 눌렀는가”를 중복 없이 기억해야 한다</div>
+            <div class="count-card">
+              <b>좋아요 Set</b>
+              <span class="mini-title">comment-like:12554</span>
+              <div class="like-users"><span class="user-pill">user:967</span><span class="user-pill">user:345</span><span class="user-pill">user:25</span></div>
+              <p>같은 사용자가 다시 눌러도 한 번만 저장된다. <code>SCARD</code>로 정확한 좋아요 수를 센다.</p>
+            </div>
+          </div>
+          <div class="cmd-name">
+<ul>
+              <li><code>SCARD</code> = <code>S</code>(Set) + <code>CARD</code>(Cardinality, 집합 원소 개수)</li>
+              <li><code>HINCRBY</code> = <code>H</code>(Hash) + <code>INCR BY</code>(값만큼 증가)</li>
+              <li><code>SETBIT</code> = bit 값을 설정한다</li>
+              <li><code>BITCOUNT</code> = 1로 설정된 bit 개수를 센다</li>
+              <li><code>BITOP</code> = bit 연산(Operation)을 수행한다</li>
+            </ul>
+          </div>
+          <p><strong>상황</strong> — 뉴스 댓글에 좋아요를 누르는 기능이다. 한 명의 유저는 같은 댓글에 한 번만 좋아요를 누를 수 있어야 하므로 단순 개수가 아니라 누가 눌렀는지도 추적해야 한다.</p>
+          <p><strong>해결</strong> — Set에 유저 ID를 저장하면 중복 없이 관리할 수 있다.</p>
+          <div class="cmd"><pre><span class="c-prompt">&gt;</span> SADD comment-like:12554 967
+<span class="c-result">(integer) 1</span>
+
+<span class="c-prompt">&gt;</span> SCARD comment-like:12554
+<span class="c-result">(integer) 3</span></pre></div>
+          <h3>2. 읽지 않은 메시지 수 카운팅</h3>
+          <div class="visual">
+            <div class="visual__title">읽지 않은 메시지는 사용자 안에 채널별 숫자를 둔다</div>
+            <div class="count-card">
+              <b>읽지 않은 메시지 Hash</b>
+              <span class="mini-title">user:234</span>
+              <div class="unread-table"><div class="unread-row"><span>channel:4234</span><strong>+1 → 3</strong></div><div class="unread-row"><span>channel:3435</span><strong>-1 → 26</strong></div></div>
+              <p>사용자 안에 채널별 카운트를 두고 <code>HINCRBY</code>로 증감한다.</p>
+            </div>
+          </div>
+          <p><strong>상황</strong> — 채팅 애플리케이션에서 사용자가 속한 채널별 읽지 않은 메시지 수를 관리한다.</p>
+          <p><strong>해결</strong> — Hash로 사용자별 채널별 카운트를 저장하고, <code>HINCRBY</code>로 증감한다.</p>
+          <div class="cmd"><pre><span class="c-prompt">&gt;</span> HINCRBY user:234 channel:4234 1
+<span class="c-result">(integer) 1</span>
+
+<span class="c-prompt">&gt;</span> HINCRBY user:234 channel:3435 -1
+<span class="c-result">(integer) 26</span></pre></div>
+          <h3>3. DAU 구하기</h3>
+          <div class="visual">
+            <div class="visual__title">DAU는 사용자 ID 위치를 0/1 bit로 표시한다</div>
+            <div class="count-card">
+              <b>DAU Bitmap</b>
+              <span class="mini-title">uv:20221106</span>
+              <div class="bits"><span class="bit">0</span><span class="bit on">1</span><span class="bit">0</span><span class="bit on">1</span><span class="bit">0</span><span class="bit">0</span><span class="bit on">1</span><span class="bit">0</span></div>
+              <p>사용자 ID 위치의 bit를 1로 바꾸고, <code>BITCOUNT</code>로 방문자 수를 센다.</p>
+            </div>
+          </div>
+          <p><strong>상황</strong> — 하루 동안 서비스를 방문한 고유 사용자 수를 실시간으로 측정한다. Set에 모두 저장하면 메모리와 큰 키 문제가 생길 수 있다.</p>
+          <p><strong>해결</strong> — 사용자 ID를 bit offset으로 사용하면 1,000만 명을 약 1.2MB로 표현할 수 있다.</p>
+          <div class="bitmap-demo">
+            <div class="bitmap-title">SETBIT: 사용자 ID 위치에 출석 도장을 찍는다고 이해한다</div>
+            <div class="bitmap-strip">
+              <div class="bitmap-cell"><small>offset 10</small><b>0</b></div>
+              <div class="bitmap-cell on"><small>offset 11</small><b>1</b></div>
+              <div class="bitmap-cell"><small>offset 12</small><b>0</b></div>
+              <div class="bitmap-cell on"><small>offset 13</small><b>1</b></div>
+              <div class="bitmap-cell focus"><small>offset 14</small><b>1</b></div>
+              <div class="bitmap-cell"><small>offset 15</small><b>0</b></div>
+              <div class="bitmap-cell on"><small>offset 16</small><b>1</b></div>
+              <div class="bitmap-cell"><small>offset 17</small><b>0</b></div>
+            </div>
+            <p class="visual-caption"><code>SETBIT uv:20221106 14 1</code>은 2022년 11월 6일 방문 기록에서 사용자 ID 14번 위치의 bit를 1로 바꾼다는 뜻이다. 이미 1이었다면 새 방문자로 늘어나지는 않는다.</p>
+          </div>
+          <div class="cmd"><pre><span class="c-prompt">&gt;</span> SETBIT uv:20221106 14 1
+<span class="c-result">(integer) 0</span>
+
+<span class="c-prompt">&gt;</span> BITCOUNT uv:20221106
+<span class="c-result">(integer) 3</span></pre></div>
+          <p><code>SETBIT</code>의 반환값 <code>0</code>은 “바꾸기 전 offset 14의 기존 bit 값이 0이었다”는 뜻이다. 그 위치를 1로 바꾼 뒤 <code>BITCOUNT</code>를 실행하면 1로 켜진 bit 개수, 즉 방문한 고유 사용자 수를 센다.</p>
+          <h4>비트 연산 — BITOP</h4>
+          <div class="bitmap-demo">
+            <div class="bitmap-title">BITOP AND: 여러 날 모두 1인 사용자만 남긴다</div>
+            <div class="bitop-grid">
+              <div class="bitop-row"><span class="bitop-label">11월 1일</span><span class="bitop-bit on">1</span><span class="bitop-bit on">1</span><span class="bitop-bit">0</span><span class="bitop-bit on">1</span><span class="bitop-bit">0</span></div>
+              <div class="bitop-row"><span class="bitop-label">11월 2일</span><span class="bitop-bit on">1</span><span class="bitop-bit">0</span><span class="bitop-bit">0</span><span class="bitop-bit on">1</span><span class="bitop-bit on">1</span></div>
+              <div class="bitop-row"><span class="bitop-label">11월 3일</span><span class="bitop-bit on">1</span><span class="bitop-bit on">1</span><span class="bitop-bit">0</span><span class="bitop-bit on">1</span><span class="bitop-bit">0</span></div>
+              <div class="bitop-row result"><span class="bitop-label">AND 결과</span><span class="bitop-bit on">1</span><span class="bitop-bit">0</span><span class="bitop-bit">0</span><span class="bitop-bit on">1</span><span class="bitop-bit">0</span></div>
+            </div>
+            <p class="visual-caption">AND는 같은 위치가 모든 날짜에서 1일 때만 결과도 1이 된다. 위 예시에서는 1이 2개 남으므로 3일 모두 방문한 사용자는 2명이다.</p>
+          </div>
+          <div class="cmd"><pre><span class="c-prompt">&gt;</span> BITOP AND event:202211 uv:20221101 uv:20221102 uv:20221103
+<span class="c-result">(integer) 2</span>
+
+<span class="c-prompt">&gt;</span> BITCOUNT event:202211
+<span class="c-result">(integer) 2</span></pre></div>
+          <p><code>BITOP AND event:202211 ...</code>는 세 날짜의 비트맵을 AND 연산해서 결과 비트맵을 <code>event:202211</code> 키에 저장한다. 이 명령은 “저장” 명령이므로 응답값은 사람 수가 아니라 새로 만들어진 결과 비트맵의 바이트 길이이다.</p>
+          <p>실제 3일 모두 방문한 사용자 수는 그 다음 줄처럼 <code>BITCOUNT event:202211</code>로 다시 세야 한다. 이때 결과가 <code>(integer) 2</code>라면, 결과 비트맵 안에 1이 2개 있다는 뜻이므로 3일 모두 방문한 사용자가 2명이라는 의미이다.</p>
+        </section>
+
+        <section id="hll">
+          <div class="kicker">06 · HyperLogLog</div>
+          <h2>HyperLogLog를 이용한 애플리케이션 미터링</h2>
+          <h3>상황</h3>
+          <p>클라우드 서비스에서 사용자별 API 호출 횟수를 측정한다. 서버가 여러 대이고 로그가 초당 100개씩 쌓이면 한 달에 수억 건이 될 수 있다.</p>
+          <div class="visual">
+            <div class="visual__title">HyperLogLog는 “누가 있었는지” 목록을 버리고 “대략 몇 종류인지”만 남긴다</div>
+            <div class="hll-flow">
+              <div class="hll-card">
+                <h4>1. 들어오는 로그</h4>
+                <div class="hll-list">
+                  <div class="hll-item"><span>api:49483</span><span>처음</span></div>
+                  <div class="hll-item"><span>api:32714</span><span>처음</span></div>
+                  <div class="hll-item dup"><span>api:49483</span><span>중복</span></div>
+                  <div class="hll-item"><span>api:88881</span><span>처음</span></div>
+                </div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="hll-card">
+                <h4>2. 작은 요약 칸만 갱신</h4>
+                <p>각 로그를 해시해서 몇 개의 요약 칸만 업데이트한다. 원본 ID 목록은 저장하지 않는다.</p>
+                <div class="hll-summary"><div class="hll-cell">요약 1</div><div class="hll-cell">요약 2</div><div class="hll-cell">요약 3</div><div class="hll-cell">요약 4</div></div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="hll-card">
+                <h4>3. 고유 개수 추정</h4>
+                <div class="hll-result">PFCOUNT 결과 예시<b>≈ 3</b>고유 API 3개로 추정</div>
+              </div>
+            </div>
+            <p class="visual-caption">Set은 <code>api:49483</code>, <code>api:32714</code> 같은 원본 값을 모두 기억한다. HyperLogLog는 원본 값을 다시 꺼낼 수 없지만, 아주 작은 요약 정보만으로 고유 개수를 추정한다.</p>
+          </div>
+          <h3>왜 HyperLogLog일까?</h3>
+          <p>집합 내 유일한 데이터의 개수만 필요하고, 1% 미만의 오차를 허용할 수 있으며, 정확한 데이터를 다시 확인하지 않아도 된다면 HyperLogLog가 적합하다.</p>
+          <p>Set은 모든 데이터를 기억해야 하지만, HyperLogLog는 저장 공간이 약 12KB로 고정된다.</p>
+          <details class="box" open>
+            <summary>핵심 커맨드<span class="tag">PFADD · PFCOUNT · PFMERGE</span></summary>
+            <div class="box__body">
+              <div class="cmd-name">
+        HyperLogLog 명령의 <code>PF</code>는 HyperLogLog 알고리즘의 기반 연구자인 Philippe Flajolet 이름에서 온 접두어이다. <code>PFADD</code>는 관측값 추가, <code>PFCOUNT</code>는 추정 개수 조회, <code>PFMERGE</code>는 여러 HyperLogLog 병합을 의미한다.
+              </div>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> PFADD 202211:user:245 49483
+<span class="c-result">(integer) 1</span>
+
+<span class="c-prompt">&gt;</span> PFADD 202211:user:245 32714
+<span class="c-result">(integer) 1</span>
+
+<span class="c-prompt">&gt;</span> PFADD 202211:user:245 49483
+<span class="c-result">(integer) 1</span>
+
+<span class="c-prompt">&gt;</span> PFCOUNT 202211:user:245
+<span class="c-result">(integer) 2</span></pre></div>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> PFMERGE 2022:user:245 202211:user:245 202212:user:245
+<span class="c-result">"OK"</span>
+
+<span class="c-prompt">&gt;</span> PFCOUNT 2022:user:245
+<span class="c-result">(integer) 7</span></pre></div>
+              <div class="note note--danger">
+                <strong>주의</strong>
+                HyperLogLog는 원소 자체를 저장하지 않고 고유 개수만 근사한다. 따라서 “대략 몇 종류가 있었는가”를 알기 위한 구조이지, “정확히 무엇이 있었는가”를 저장하는 구조가 아니다.
+              </div>
+              <table>
+                <thead>
+                  <tr><th>기능 요구사항</th><th>Set</th><th>HyperLogLog</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>정확한 개수 조회</td><td>가능하다. <code>SCARD</code>는 실제 원소 수를 센다.</td><td>부적합하다. <code>PFCOUNT</code>는 근사값이다.</td></tr>
+                  <tr><td>특정 사용자의 참여 여부 확인</td><td>가능하다. <code>SISMEMBER</code>로 확인한다.</td><td>불가능하다. 원소 목록을 보관하지 않는다.</td></tr>
+                  <tr><td>취소 처리</td><td>가능하다. <code>SREM</code>으로 원소를 제거한다.</td><td>불가능하다. 개별 원소를 제거할 수 없다.</td></tr>
+                  <tr><td>원소 목록 조회</td><td>가능하다. <code>SMEMBERS</code>로 확인한다.</td><td>불가능하다. 요약 정보만 남는다.</td></tr>
+                </tbody>
+              </table>
+              <div class="note">
+                <strong>좋아요에 HLL을 쓰면 안 되는 이유</strong>
+                좋아요는 “이 사용자가 이미 눌렀는가”, “좋아요를 취소할 수 있는가”, “정확한 좋아요 수는 몇 개인가”, “필요하면 누가 눌렀는가”를 알아야 한다. HyperLogLog는 이 정보를 저장하지 않으므로 좋아요, 결제, 장바구니, 재고, 포인트처럼 정확성과 원소 조회가 필요한 기능에는 맞지 않는다.
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section id="geo">
+          <div class="kicker">07 · Geospatial</div>
+          <h2>Geospatial Index를 이용한 위치 기반 애플리케이션</h2>
+          <div class="cmd-name">
+            <strong>용어 풀이</strong>
+            <code>spatial</code>은 <code>space</code>의 형용사형으로 “공간의”라는 뜻이다. <code>geo</code>는 지리·지구·위치를 뜻하므로, <code>geospatial</code>은 “지리 공간의”, 즉 경도와 위도 같은 위치 좌표를 다루는 개념이다.
+          </div>
+          <h3>상황</h3>
+          <p>지도 애플리케이션이나 맞춤 광고 서비스에서는 사용자의 현재 위치 파악, 이동에 따른 실시간 위치 업데이트, 사용자 위치 기준 근처 장소 검색이 필요하다.</p>
+          <div class="visual">
+            <div class="visual__title">현재 위치를 기준으로 반경 안의 장소를 찾는다</div>
+            <div class="map-box"><div class="road r1"></div><div class="road r2"></div><div class="radius"></div><div class="pin user">사용자</div><div class="pin p1">식당 A</div><div class="pin p2">카페 B</div><div class="pin p3">식당 C</div></div>
+          </div>
+          <h3>왜 레디스가 유리할까?</h3>
+          <p>Redis는 데이터 저장과 실시간 위치 연산을 함께 수행할 수 있어 네트워크 트래픽과 애플리케이션 코드의 복잡성을 줄일 수 있다. Geo Set과 Pub/Sub을 조합하면 특정 위치 근처 사용자에게 실시간 알림을 보내는 식의 응용도 가능하다.</p>
+          <details class="box" open>
+            <summary>핵심 커맨드<span class="tag">GEOADD · GEOPOS · GEOSEARCH</span></summary>
+            <div class="box__body">
+              <div class="cmd-name">
+        <ul>
+                  <li><code>GEOADD</code> = <code>GEO</code>(지리 좌표) + <code>ADD</code>(추가)</li>
+                  <li><code>GEOPOS</code> = <code>GEO</code>(지리 좌표) + <code>POS</code>(Position, 위치)</li>
+                  <li><code>GEOSEARCH</code> = <code>GEO</code>(지리 좌표) + <code>SEARCH</code>(검색)</li>
+                </ul>
+              </div>
+              <h4>저장 — GEOADD</h4>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> GEOADD restaurant 50.192837912837 14.912837912837 ukalendu
+<span class="c-result">(integer) 1</span></pre></div>
+              <p><code>GEOADD &lt;key&gt; 경도 위도 멤버</code> 순서이다. 같은 멤버에 새 좌표를 입력하면 위치가 업데이트된다.</p>
+              <div class="note">
+                <strong>내부 저장 방식</strong>
+                Redis의 Geospatial은 내부적으로 Sorted Set을 사용한다. <code>GEOADD</code>를 실행하면 멤버 이름은 Sorted Set의 member로 저장되고, 경도·위도 좌표는 GeoHash 방식으로 인코딩된 숫자 score로 저장된다.
+              </div>
+              <table>
+                <thead>
+                  <tr><th>입력한 Geo 데이터</th><th>내부 Sorted Set 관점</th><th>의미</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>key = restaurant</code></td><td><code>zset key = restaurant</code></td><td>Geo 데이터셋 하나가 Sorted Set 하나로 관리된다.</td></tr>
+                  <tr><td><code>member = ukalendu</code></td><td><code>member = ukalendu</code></td><td>장소나 사용자를 식별하는 이름이다.</td></tr>
+                  <tr><td><code>lon = 50.1928, lat = 14.9128</code></td><td><code>score = encoded geohash number</code></td><td>경도와 위도를 하나의 정렬 가능한 숫자로 변환한 값이다.</td></tr>
+                </tbody>
+              </table>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> TYPE restaurant
+<span class="c-result">zset</span>
+
+<span class="c-prompt">&gt;</span> ZRANGE restaurant 0 -1 WITHSCORES
+<span class="c-result">1) "ukalendu"
+2) "3479... 형태의 GeoHash score"</span></pre></div>
+              <p>즉, 개발자는 <code>GEOADD</code>, <code>GEOPOS</code>, <code>GEOSEARCH</code> 같은 Geo 명령을 사용하지만, Redis 내부에서는 위치를 “멤버 이름 + 정렬 가능한 숫자 score” 형태로 관리한다. 이 구조 덕분에 특정 좌표 주변의 후보를 빠르게 좁혀서 검색할 수 있다.</p>
+              <h4>조회 — GEOPOS</h4>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> GEOPOS restaurant ukalendu
+<span class="c-result">1) 1) "50.192837912837"
+   2) "14.912837912837"</span></pre></div>
+              <h4>근처 검색 — GEOSEARCH</h4>
+              <div class="cmd"><pre><span class="c-prompt">&gt;</span> GEOSEARCH restaurant FROMLONLAT 50.192837912837 14.912837912837 BYRADIUS 1 KM
+<span class="c-result">1) "ukalendu"</span></pre></div>
+              <ul>
+                <li><code>FROMLONLAT</code> — 직접 경도/위도를 지정해 검색</li>
+                <li><code>FROMMEMBER</code> — 같은 데이터셋 내 멤버를 기준으로 검색</li>
+                <li><code>BYRADIUS</code> — 반지름 기준 원형 영역 검색</li>
+                <li><code>BYBOX</code> — width와 height를 지정한 직사각형 영역 검색</li>
+              </ul>
+              <div class="note note--warn">
+                <strong>BYRADIUS와 BYBOX 차이</strong>
+                <span class="inline-cmd">BYRADIUS</span>의 숫자는 중심점에서 경계까지의 거리, 즉 반지름이다. 따라서 <span class="inline-cmd">BYRADIUS 2 KM</span>는 중심점에서 위·아래·왼쪽·오른쪽 어느 방향으로든 2km까지 떨어진 장소를 원 안에서 찾는다는 뜻이다.
+                <br /><br />
+                반대로 <span class="inline-cmd">BYBOX</span>의 숫자는 반지름이 아니라 직사각형의 전체 가로 길이와 전체 세로 길이이다. 그래서 <span class="inline-cmd">BYBOX 4 2 KM</span>는 “중심에서 4km까지”가 아니라 “가로 전체가 4km, 세로 전체가 2km인 박스”를 뜻한다. 기준점이 박스의 가운데에 있으므로 실제 검색 범위는 좌우 2km, 상하 1km가 된다.
+              </div>
+              <div class="geo-compare">
+                <div class="geo-card">
+                  <h4>BYRADIUS 2 KM</h4>
+                  <p>입력값 2km가 중심점에서 경계까지의 거리이다. 원의 지름은 결과적으로 4km가 된다.</p>
+                  <div class="shape-stage">
+                    <div class="shape-circle"></div>
+                    <div class="shape-center"></div>
+                    <span class="measure right">반지름 2km</span>
+                    <span class="measure bottom">원형 검색</span>
+                  </div>
+                </div>
+                <div class="geo-card">
+                  <h4>BYBOX 4 2 KM</h4>
+                  <p>입력값 4km와 2km는 박스의 전체 크기이다. 중심 기준으로는 가로가 반씩, 세로가 반씩 나뉜다.</p>
+                  <div class="shape-stage">
+                    <div class="shape-rect"></div>
+                    <div class="shape-center"></div>
+                    <span class="measure top">전체 가로 4km</span>
+                    <span class="measure right">위 1km</span>
+                    <span class="measure left">왼쪽 2km</span>
+                    <span class="measure bottom">전체 세로 2km</span>
+                  </div>
+                </div>
+              </div>
+              <p>정리하면 <span class="inline-cmd">BYRADIUS 2 KM</span>는 “중심에서 2km 이내”이고, <span class="inline-cmd">BYBOX 4 2 KM</span>는 “중심을 가운데로 둔 4km × 2km 사각형 안”이다. 같은 숫자라도 의미하는 기준이 다르다.</p>
+            </div>
+          </details>
+        </section>
+        <section id="popular-region-case">
+          <div class="kicker">08 · Practice Case</div>
+          <h2>실무 사례: 인기 지역 랭킹</h2>
+          <h3>상황</h3>
+          <p>사용자가 지역 랭킹 분석을 성공하면 해당 지역의 인기 점수를 올리는 구조이다. 단, 같은 회원이 같은 지역을 하루에 여러 번 분석해도 인기 점수는 한 번만 올라야 한다.</p>
+          <img class="case-visual-img" src="./popular-region-ranking-flow.svg" alt="지역 분석 성공 후 Set으로 중복 회원을 확인하고 Sorted Set으로 지역 점수를 올려 인기 지역 랭킹을 조회하는 흐름" />
+          <div class="case-grid">
+            <div class="case-card">
+              <h4>Set: 일자별·지역별 중복 제거</h4>
+              <p><code>region:viewers:{yyyyMMdd}:{regionCode}</code></p>
+              <p>member는 <code>memberId</code>이다. 같은 회원이 같은 지역을 하루에 여러 번 분석해도 Set에는 한 번만 저장된다.</p>
+            </div>
+            <div class="case-card">
+              <h4>Sorted Set: 일자별 인기 점수 누적</h4>
+              <p><code>popular:regions:{yyyyMMdd}</code></p>
+              <p>member는 <code>regionCode</code>, score는 해당 날짜의 유니크 조회/분석 수이다.</p>
+            </div>
+          </div>
+
+          <h3>커맨드 흐름</h3>
+          <div class="case-flow">
+            <div class="case-step">
+              <span class="case-step-num">1</span>
+              <div>
+                <b><code>SADD region:viewers:20260430:1168010100 12345</code></b>
+                <p>2026년 4월 30일에 1168010100 지역을 본 회원 목록에 12345번 회원을 추가한다. 반환값이 1이면 오늘 이 지역을 처음 본 회원이고, 0이면 이미 반영된 회원이다.</p>
+              </div>
+            </div>
+            <div class="case-step">
+              <span class="case-step-num">2</span>
+              <div>
+                <b><code>EXPIRE region:viewers:20260430:1168010100 604800</code></b>
+                <p>일자별·지역별 방문자 Set을 7일 뒤 자동 삭제한다. 최근 7일 기준 랭킹이므로 오래된 키는 Redis가 정리하게 둔다.</p>
+              </div>
+            </div>
+            <div class="case-step">
+              <span class="case-step-num">3</span>
+              <div>
+                <b><code>ZINCRBY popular:regions:20260430 1 1168010100</code></b>
+                <p>SADD 결과가 1일 때만 실행한다. Sorted Set에서 1168010100 지역의 점수를 1 올려 같은 회원의 반복 분석이 점수를 여러 번 올리지 않게 한다.</p>
+              </div>
+            </div>
+            <div class="case-step">
+              <span class="case-step-num">4</span>
+              <div>
+                <b><code>ZRANGE popular:regions:20260430 0 -1 WITHSCORES</code></b>
+                <p>해당 날짜의 모든 지역 코드와 점수를 가져온다. 조회 시에는 최근 7일치 <code>popular:regions:{yyyyMMdd}</code> 키를 읽고 점수를 합산한 뒤 상위 지역을 반환한다.</p>
+              </div>
+            </div>
+          </div>
+
+          <h3>집계 방식 비교</h3>
+          <table class="compare-table">
+            <thead><tr><th>방식</th><th>쓰기 시점</th><th>조회 시점</th></tr></thead>
+            <tbody>
+              <tr><td>Redis 사용</td><td><code>SADD</code>로 중복 제거 후 신규 회원이면 <code>ZINCRBY</code>로 점수 누적</td><td>최근 7일 ZSet만 읽어 합산</td></tr>
+              <tr><td>Redis 미사용</td><td>조회 로그를 DB 테이블에 저장</td><td><code>COUNT(DISTINCT DATE(viewed_at), member_id)</code> + <code>GROUP BY region_code</code> + <code>ORDER BY score DESC</code></td></tr>
+            </tbody>
+          </table>
+          <div class="note">
+            <strong>시간복잡도는 O(1)이 아니라 O(log N)에 가깝다</strong>
+            Redis Sorted Set은 단순 Hash처럼 모든 연산이 O(1)은 아니다. 내부적으로 빠른 member 조회를 위한 Hash Table과 score 기준 정렬을 위한 Skip List를 함께 사용한다. 그래서 <code>ZINCRBY</code> 같은 점수 갱신은 보통 <code>O(log N)</code>, <code>ZRANGE</code> 같은 범위 조회는 <code>O(log N + M)</code>으로 설명한다. 여기서 N은 Sorted Set 원소 수, M은 반환하는 원소 수이다.
+          </div>
+          <p>이 사례에서 Redis가 유리한 이유는 “모든 명령이 O(1)”이기 때문이 아니라, 원본 로그 전체를 매번 집계하지 않고 <strong>이미 누적된 랭킹 자료구조</strong>를 읽기 때문이다. Set의 <code>SADD</code>는 평균 O(1)에 가까운 중복 제거를 맡고, Sorted Set은 O(log N) 비용으로 점수 순서를 유지한다.</p>
+
+          <h3>성능 비교</h3>
+          <table class="perf-table">
+            <thead><tr><th>이벤트 수</th><th>Redis 조회 평균</th><th>MySQL 집계 조회 평균</th><th>차이</th></tr></thead>
+            <tbody>
+              <tr><td>10,000건</td><td>3.43ms</td><td>4.90ms</td><td>1.4배</td></tr>
+              <tr><td>100,000건</td><td>2.13ms</td><td>53.37ms</td><td>25.0배</td></tr>
+              <tr><td>500,000건</td><td>2.27ms</td><td>245.07ms</td><td>108.1배</td></tr>
+            </tbody>
+          </table>
+          <div class="note">
+            <strong>245ms는 느린가?</strong>
+            245ms는 0.245초이다. 단건 요청만 보면 나쁘지 않은 수치이다. 하지만 중요한 포인트는 절대 시간이 아니라 증가 추세이다. MySQL 집계 조회는 이벤트 수가 늘수록 같이 증가했고, Redis 조회는 이미 누적된 일별 Sorted Set을 읽기 때문에 2~3ms 근처에 머물렀다.
+          </div>
+          <h3>데이터가 더 커지면?</h3>
+          <p>아래 표는 <strong>실측값이 아니라 단순 선형 추정</strong>이다. 즉 500,000건에서 측정된 MySQL 집계 조회 시간 245.07ms를 기준으로 이벤트 수가 2배, 20배, 200배가 되면 조회 시간도 같은 비율로 늘어난다고 가정한 값이다. 질문처럼 “0을 붙인 만큼 조회 시간에도 0을 붙인” 계산이 맞다.</p>
+          <div class="note note--warn">
+            <strong>이 표를 읽는 방법</strong>
+            운영 DB에서는 버퍼 풀 캐시, 인덱스 선택, 디스크 I/O, 파티셔닝, 요약 테이블, 동시 요청 수에 따라 실제 시간이 선형보다 작거나 크게 달라질 수 있다. 따라서 이 표는 정확한 예측값이 아니라 “원본 로그를 조회 때마다 다시 집계하는 방식은 데이터 크기에 민감하다”는 증가 방향을 보여주는 보조 자료로만 사용한다.
+          </div>
+          <table class="perf-table">
+            <thead><tr><th>이벤트 수</th><th>MySQL 집계 조회 단순 추정</th><th>초 단위</th><th>Redis 조회 예상</th></tr></thead>
+            <tbody>
+              <tr><td>500,000건</td><td>약 245ms</td><td>약 0.245초</td><td>약 2~3ms</td></tr>
+              <tr><td>1,000,000건</td><td>약 490ms</td><td>약 0.49초</td><td>약 2~4ms</td></tr>
+              <tr><td>10,000,000건</td><td>약 4,900ms</td><td>약 4.9초</td><td>약 2~5ms</td></tr>
+              <tr><td>100,000,000건</td><td>약 49,000ms</td><td>약 49초</td><td>약 2~10ms</td></tr>
+            </tbody>
+          </table>
+          <p>반대로 Redis 조회 예상값은 전체 이벤트 수가 아니라 “최근 7일의 일별 Sorted Set에 들어 있는 지역 수”에 더 크게 영향을 받는다. 지역 후보가 500개 수준으로 유지된다면 조회 대상은 원본 이벤트 1억 건이 아니라 7일 × 지역 수 정도의 누적 점수이다.</p>
+          <div class="summary-line">
+            <strong>한 줄 결론</strong><br />
+            Set으로 “오늘 이 지역을 처음 본 회원인가?”를 판별하고, Sorted Set으로 “지역별 인기 점수”를 누적한다. 그래서 조회 시점에는 거대한 로그를 다시 집계하지 않고 이미 누적된 점수만 읽으면 된다.
+          </div>
+        </section>
+        <footer class="creator-footer" aria-label="발표 자료 제작자">
+          <a href="https://github.com/hynxp" target="_blank" rel="noopener noreferrer">
+            <img src="./redis-4-watermark.svg" alt="만든 사람: 박이현, GitHub github.com/hynxp" />
+          </a>
+        </footer>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
