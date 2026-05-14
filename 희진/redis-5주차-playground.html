@@ -1,0 +1,4207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redis vs Kafka Playground — Chapter 6 · Message Broker</title>
+  <style>
+    @font-face {
+      font-family: 'Pretendard';
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+      src: url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/woff2/PretendardVariable.woff2') format('woff2');
+    }
+
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f8fafc;
+      --bg-softer: #f1f5f9;
+      --border: #e5e7eb;
+      --border-strong: #d1d5db;
+      --text: #1e293b;
+      --text-strong: #020617;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-bg: rgba(37,99,235,0.08);
+      --redis: #dc2626;
+      --redis-bg: rgba(220,38,38,0.08);
+      --kafka: #0f172a;
+      --kafka-bg: rgba(15,23,42,0.06);
+      --warn: #d97706;
+      --warn-bg: rgba(217,119,6,0.08);
+      --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
+      --shadow-md: 0 4px 12px rgba(15,23,42,.06), 0 16px 40px rgba(15,23,42,.06);
+
+      --term-bg: #0b0f14;
+      --term-bg-elev: #111827;
+      --term-border: rgba(226,232,240,0.08);
+      --term-text: #e2e8f0;
+      --term-muted: #94a3b8;
+      --term-dim: #475569;
+      --term-accent: #60a5fa;
+      --term-green: #4ade80;
+      --term-yellow: #fbbf24;
+      --term-red: #f87171;
+      --term-blue: #60a5fa;
+      --term-purple: #c4b5fd;
+      --term-pink: #f472b6;
+
+      --font-sans: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
+      --font-mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, 'Cascadia Code', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: var(--font-sans);
+      font-weight: 400;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-size: 15px;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 1fr 520px;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ━━━ LEFT / DOCS ━━━ */
+    .doc {
+      overflow-y: auto;
+      height: 100vh;
+      scroll-behavior: smooth;
+    }
+    .doc::-webkit-scrollbar { width: 10px; }
+    .doc::-webkit-scrollbar-track { background: var(--bg); }
+    .doc::-webkit-scrollbar-thumb { background: rgba(42,30,25,0.12); border-radius: 10px; border: 2px solid var(--bg); }
+    .doc::-webkit-scrollbar-thumb:hover { background: rgba(42,30,25,0.2); }
+
+    .doc__header {
+      padding: 40px 56px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      max-width: 1032px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+    .doc__header > * { max-width: 100%; }
+    .doc__eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 14px;
+    }
+    .doc__eyebrow::before {
+      content: '';
+      width: 22px; height: 2px;
+      background: var(--text-dim);
+    }
+    .doc__title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text-strong);
+      margin-bottom: 14px;
+      line-height: 1.2;
+    }
+    .gradient {
+      background: linear-gradient(135deg, var(--redis) 0%, var(--kafka) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .doc__subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      max-width: 700px;
+    }
+    .doc__meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+    .doc__meta span {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      padding: 5px 10px;
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .doc__main {
+      padding: 28px 56px 120px;
+      max-width: 1032px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+    .doc__main > * { max-width: 100%; }
+
+    .ch {
+      margin-bottom: 56px;
+    }
+    .ch__kicker {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    .ch__title {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--text-strong);
+      margin-bottom: 12px;
+    }
+    .ch__desc {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    /* Accordion */
+    .acc {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: box-shadow .15s;
+    }
+    .acc[open] { box-shadow: var(--shadow-sm); }
+    .acc summary {
+      padding: 16px 20px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text-strong);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      list-style: none;
+      user-select: none;
+      transition: background .12s;
+    }
+    .acc summary::-webkit-details-marker { display: none; }
+    .acc summary:hover { background: var(--bg-soft); }
+    .acc summary::after {
+      content: '';
+      width: 8px; height: 8px;
+      border-right: 2px solid var(--text-dim);
+      border-bottom: 2px solid var(--text-dim);
+      transform: rotate(45deg);
+      transition: transform .2s;
+      margin-left: 12px;
+    }
+    .acc[open] summary::after { transform: rotate(-135deg); }
+    .acc__tag {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: var(--text-dim);
+      background: var(--bg-soft);
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-left: auto;
+      margin-right: 12px;
+    }
+    .acc__body {
+      padding: 0 20px 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 18px;
+    }
+    .acc__body p { margin-bottom: 12px; color: var(--text); }
+    .acc__body h4 {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-strong);
+      margin-top: 18px;
+      margin-bottom: 10px;
+    }
+    .acc__body ul, .acc__body ol {
+      margin: 10px 0 14px 20px;
+      color: var(--text);
+    }
+    .acc__body li { margin-bottom: 6px; }
+    .acc__body code {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      background: var(--bg-softer);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: var(--text-strong);
+    }
+    .acc__body strong { color: var(--text-strong); font-weight: 700; }
+
+    /* Code block */
+    .cmd-box {
+      background: var(--term-bg);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      overflow-x: auto;
+    }
+    .cmd-box pre {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--term-text);
+      line-height: 1.7;
+    }
+    .c-prompt { color: var(--term-accent); }
+    .c-result { color: var(--term-green); }
+    .c-comment { color: var(--term-dim); }
+    .c-redis { color: var(--term-red); }
+    .c-kafka { color: var(--term-yellow); }
+
+    /* Try buttons */
+    .try-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 16px 0;
+      padding: 14px;
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .try-group__label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      width: 100%;
+      margin-bottom: 4px;
+    }
+    .try {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all .12s;
+      white-space: nowrap;
+    }
+    .try--redis {
+      background: var(--redis-bg);
+      color: var(--redis);
+      border-color: rgba(220,38,38,0.2);
+    }
+    .try--redis:hover {
+      background: var(--redis);
+      color: white;
+      transform: translateY(-1px);
+    }
+    .try--kafka {
+      background: var(--kafka-bg);
+      color: var(--kafka);
+      border-color: rgba(15,23,42,0.15);
+    }
+    .try--kafka:hover {
+      background: var(--kafka);
+      color: white;
+      transform: translateY(-1px);
+    }
+    .try__badge {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-right: 6px;
+      vertical-align: 1px;
+    }
+    .try--redis .try__badge { background: var(--redis); color: white; }
+    .try--kafka .try__badge { background: var(--kafka); color: white; }
+
+    /* Note */
+    .note {
+      padding: 14px 16px;
+      border-radius: 8px;
+      margin: 14px 0;
+      font-size: 14px;
+      border-left: 3px solid;
+    }
+    .note strong {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+    .note--info { background: var(--accent-bg); border-left-color: var(--accent); color: var(--text); }
+    .note--info strong { color: var(--accent); }
+    .note--warn { background: var(--warn-bg); border-left-color: var(--warn); color: var(--text); }
+    .note--warn strong { color: var(--warn); }
+
+    /* Grid */
+    .grid { display: grid; gap: 14px; }
+    .grid--2 { grid-template-columns: 1fr 1fr; }
+    .mini {
+      padding: 14px 16px;
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .mini__k {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-strong);
+      margin-bottom: 6px;
+    }
+    .mini__d {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-dim);
+      margin-left: 6px;
+      letter-spacing: 0.05em;
+    }
+    .mini__p { font-size: 13px; color: var(--text-muted); }
+
+    /* Comparison table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      font-weight: 800;
+      color: var(--text-strong);
+      background: var(--bg-soft);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+    }
+    td code { font-size: 12px; }
+    .col-redis { color: var(--redis); font-weight: 700; }
+    .col-kafka { color: var(--kafka); font-weight: 700; }
+
+    /* ━━━ Widgets (Diagrams / Animations) ━━━ */
+    .widget {
+      margin: 18px 0;
+      padding: 16px;
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow-sm);
+    }
+    .widget__label {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      padding: 2px 6px;
+      background: var(--bg-softer);
+      border-radius: 3px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+    .widget__title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-strong);
+      margin-bottom: 4px;
+    }
+    .widget__caption {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+    .widget svg { display: block; width: 100%; height: auto; }
+    .widget svg text {
+      font-family: var(--font-sans);
+      font-weight: 700;
+    }
+
+    /* Widget — pulse dot (메시지 입자) */
+    @keyframes widget-pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    /* ━━━ RIGHT / PLAYGROUND ━━━ */
+    .pg {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      height: 100vh;
+      border-left: 1px solid var(--border);
+      background: var(--term-bg);
+    }
+    .term-pane {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+      position: relative;
+      border: 2px solid transparent;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .term-pane + .term-pane {
+      border-top: 1px solid var(--term-border);
+    }
+    /* 모드별 pane 테두리 */
+    .term-pane.is-producer {
+      border-color: var(--term-yellow);
+      box-shadow: inset 0 0 0 1px var(--term-yellow), 0 0 20px rgba(251,191,36,0.15);
+    }
+    .term-pane.is-consumer {
+      border-color: var(--term-green);
+      box-shadow: inset 0 0 0 1px var(--term-green), 0 0 20px rgba(74,222,128,0.15);
+    }
+
+    .term__bar {
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      background: var(--term-bg-elev);
+      border-bottom: 1px solid var(--term-border);
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .term__bar--redis { border-top: 3px solid var(--redis); }
+    .term__bar--kafka { border-top: 3px solid var(--kafka); background: #1a1a1a; }
+
+    .term__label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--term-text);
+      flex: 1;
+      font-family: var(--font-mono);
+    }
+    .term__label-badge {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-right: 8px;
+      vertical-align: 1px;
+    }
+    .term__label-badge--redis { background: var(--redis); color: white; }
+    .term__label-badge--kafka { background: white; color: var(--kafka); }
+
+    .term__btn {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 4px 10px;
+      border: 1px solid var(--term-border);
+      background: transparent;
+      color: var(--term-muted);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all .12s;
+    }
+    .term__btn:hover {
+      color: var(--term-text);
+      border-color: var(--term-dim);
+      background: rgba(255,255,255,0.03);
+    }
+
+    .term__out {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--term-text);
+      min-height: 0;
+    }
+    .term__out::-webkit-scrollbar { width: 8px; }
+    .term__out::-webkit-scrollbar-track { background: transparent; }
+    .term__out::-webkit-scrollbar-thumb { background: var(--term-dim); border-radius: 4px; }
+
+    .term__line { white-space: pre-wrap; word-break: break-all; }
+    .term__line--cmd { color: var(--term-text); }
+    .term__line--cmd .term__line-prompt { color: var(--term-accent); margin-right: 6px; }
+    .term__line--ok { color: var(--term-green); }
+    .term__line--err { color: var(--term-red); }
+    .term__line--int { color: var(--term-yellow); }
+    .term__line--str { color: var(--term-text); }
+    .term__line--nil { color: var(--term-dim); }
+    .term__line--sys { color: var(--term-purple); font-style: italic; font-size: 12px; }
+    .term__line--push { color: var(--term-pink); }
+    .term__line--arr-idx { color: var(--term-dim); }
+
+    .term__input-row {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      background: var(--term-bg-elev);
+      border-top: 1px solid var(--term-border);
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    /* Kafka 헤더 모드 표시 — 모드 인디케이터 뱃지만 표시 (배경색 변경 없음) */
+
+    /* 모드 인디케이터 뱃지 (KAFKA 뱃지 옆) */
+    .term__mode-indicator {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-family: var(--font-sans);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      vertical-align: 1px;
+    }
+    .term-pane.is-producer .term__mode-indicator {
+      display: inline-flex;
+      background: var(--term-yellow);
+      color: #1a1a1a;
+    }
+    .term-pane.is-consumer .term__mode-indicator {
+      display: inline-flex;
+      background: var(--term-green);
+      color: #1a1a1a;
+    }
+    .term__mode-indicator-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Exit 버튼 (헤더 우측, 모드 활성 시에만 표시) */
+    .term__btn--exit {
+      display: none;
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: none;
+      transition: all .12s;
+    }
+    .term-pane.is-producer .term__btn--exit {
+      display: inline-block;
+      background: var(--term-yellow);
+      color: #1a1a1a;
+    }
+    .term-pane.is-consumer .term__btn--exit {
+      display: inline-block;
+      background: var(--term-green);
+      color: #1a1a1a;
+    }
+    .term__btn--exit:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    /* 입력창 프롬프트 색상 (모드별) */
+    .term__prompt--producer {
+      color: var(--term-yellow) !important;
+      font-weight: 800;
+    }
+    .term__prompt--consumer {
+      color: var(--term-green) !important;
+    }
+    .term__prompt {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--term-accent);
+      white-space: nowrap;
+    }
+    .term__input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--term-text);
+      caret-color: var(--term-accent);
+      padding: 0;
+    }
+    .term__input::placeholder { color: var(--term-dim); }
+
+    /* Welcome message */
+    .term__welcome {
+      color: var(--term-muted);
+      font-style: italic;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .term__welcome strong {
+      color: var(--term-text);
+      font-style: normal;
+    }
+
+    /* Responsive */
+    @media (max-width: 1100px) {
+      .doc__header { padding: 32px 40px 24px; }
+      .doc__main { padding: 20px 40px 100px; }
+      .app { grid-template-columns: 1fr 440px; }
+    }
+    @media (max-width: 900px) {
+      html, body { overflow: auto; height: auto; }
+      .app { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
+      .doc { height: auto; overflow: visible; }
+      .pg { height: 90vh; border-left: none; border-top: 1px solid var(--term-border); position: sticky; bottom: 0; }
+      .doc__header { padding: 24px 20px 20px; }
+      .doc__main { padding: 16px 20px 60px; }
+      .grid--2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ━━━ LEFT PANE ━━━ -->
+  <aside class="doc">
+    <div class="doc__header">
+      <div class="doc__eyebrow">Redis for Developers · Chapter 6</div>
+      <h1 class="doc__title"><span class="gradient">Redis를 메시지 브로커로 사용하기</span></h1>
+      <p class="doc__subtitle">
+        Pub/Sub · List · Stream — Kafka와의 비교를 통해 Redis Stream의 위치를 확인합니다.
+      </p>
+      <div class="doc__meta">
+        <span>Chapter 06</span>
+        <span>Pub/Sub · List · Stream</span>
+        <span>Redis ↔ Kafka 비교</span>
+        <span>Mock Engine 동작</span>
+      </div>
+    </div>
+
+    <div class="doc__main">
+
+      <!-- ─────── 6.0 Overview (샘플) ─────── -->
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Overview</div>
+        <h2 class="ch__title">메시징 큐와 이벤트 스트림</h2>
+        <p class="ch__desc">메시지 브로커는 크게 두 가지 형태로 나뉘며, Redis는 두 형태를 모두 지원합니다.</p>
+
+        <details class="acc" open>
+          <summary>두 가지 모델 비교<span class="acc__tag">06.0 · MODEL</span></summary>
+          <div class="acc__body">
+            <table>
+              <thead>
+                <tr><th>형태</th><th>보내는 쪽</th><th>받는 쪽</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>메시징 큐</td><td>생산자 (Producer)</td><td>소비자 (Consumer)</td></tr>
+                <tr><td>이벤트 스트림</td><td>발행자 (Publisher)</td><td>구독자 (Subscriber)</td></tr>
+              </tbody>
+            </table>
+
+            <h4>메시징 큐와 이벤트 스트림의 차이</h4>
+            <table>
+              <thead>
+                <tr><th>구분</th><th>메시징 큐</th><th>이벤트 스트림</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>방향성</td><td>생산자가 소비자의 큐에 직접 푸시</td><td>저장소에 보내면 구독자가 풀(Pull)</td></tr>
+                <tr><td>데이터 영속성</td><td>소비자가 읽으면 큐에서 삭제</td><td>읽어도 삭제되지 않음 (보존)</td></tr>
+                <tr><td>새 소비자 추가 시</td><td>이후 메시지만 확인 가능</td><td>이전 히스토리도 조회 가능</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <!-- ─────── 6.1 Pub/Sub ─────── -->
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Section 1</div>
+        <h2 class="ch__title">Pub/Sub</h2>
+        <p class="ch__desc">발행자가 채널에 메시지를 던지면, 그 채널을 구독 중인 모든 구독자에게 즉시 전달됩니다.</p>
+
+        <details class="acc" open>
+          <summary>기본 동작 — SUBSCRIBE와 PUBLISH<span class="acc__tag">06.1.1</span></summary>
+          <div class="acc__body">
+            <p>Pub/Sub은 메시지 전달 모델 중 가장 단순한 형태입니다. 발행자는 누가 듣고 있는지 신경 쓰지 않고, 구독자는 누가 보냈는지 신경 쓰지 않습니다. 둘 사이를 연결하는 것은 <strong>채널 이름</strong> 하나뿐입니다.</p>
+
+            <h4>구독</h4>
+            <p>구독자는 하나 이상의 채널을 구독합니다. 같은 채널에 여러 구독자가 동시에 있을 수 있습니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> SUBSCRIBE news.tech
+<span class="c-result">1) "subscribe"
+2) "news.tech"
+3) (integer) 1</span></pre></div>
+
+            <p>응답의 세 번째 값은 현재 클라이언트가 구독 중인 채널의 총 개수입니다.</p>
+
+            <h4>발행</h4>
+            <p>발행자는 채널 이름과 메시지를 함께 보냅니다. 반환값은 그 메시지를 받은 구독자의 수입니다. 0이 반환되면 메시지를 받은 구독자가 한 명도 없었다는 뜻이며, 그 메시지는 그대로 사라집니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> PUBLISH news.tech "Redis 7.4 released"
+<span class="c-result">(integer) 1</span></pre></div>
+
+            <div class="widget">
+              <span class="widget__label">Diagram</span>
+              <div class="widget__title">Pub/Sub fan-out</div>
+              <svg viewBox="0 0 500 220" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <marker id="arr-pubsub" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1" />
+                  </marker>
+                </defs>
+
+                <line x1="110" y1="110" x2="195" y2="110" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arr-pubsub)" />
+                <line x1="300" y1="110" x2="395" y2="50" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arr-pubsub)" />
+                <line x1="300" y1="110" x2="395" y2="110" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arr-pubsub)" />
+                <line x1="300" y1="110" x2="395" y2="170" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arr-pubsub)" />
+
+                <rect x="20" y="90" width="90" height="40" rx="6" fill="white" stroke="#d1d5db" />
+                <text x="65" y="116" text-anchor="middle" font-size="12" fill="#1e293b">Publisher</text>
+
+                <rect x="200" y="90" width="100" height="40" rx="6" fill="rgba(220,38,38,0.08)" stroke="#dc2626" />
+                <text x="250" y="106" text-anchor="middle" font-size="9" fill="#dc2626" font-weight="800">CHANNEL</text>
+                <text x="250" y="123" text-anchor="middle" font-size="11" fill="#1e293b" font-family="monospace">news.tech</text>
+
+                <rect x="400" y="30" width="80" height="40" rx="6" fill="white" stroke="#d1d5db" />
+                <text x="440" y="56" text-anchor="middle" font-size="11" fill="#1e293b">Subscriber 1</text>
+                <rect x="400" y="90" width="80" height="40" rx="6" fill="white" stroke="#d1d5db" />
+                <text x="440" y="116" text-anchor="middle" font-size="11" fill="#1e293b">Subscriber 2</text>
+                <rect x="400" y="150" width="80" height="40" rx="6" fill="white" stroke="#d1d5db" />
+                <text x="440" y="176" text-anchor="middle" font-size="11" fill="#1e293b">Subscriber 3</text>
+
+                <circle r="5" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="110;200;200" keyTimes="0;0.3;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="110;110;110" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.05;0.3;0.31;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+
+                <circle r="5" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="300;300;400;400" keyTimes="0;0.32;0.7;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="110;110;50;50" keyTimes="0;0.32;0.7;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.32;0.33;0.7;0.71;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+
+                <circle r="5" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="300;300;400;400" keyTimes="0;0.32;0.7;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="110;110;110;110" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.32;0.33;0.7;0.71;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+
+                <circle r="5" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="300;300;400;400" keyTimes="0;0.32;0.7;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="110;110;170;170" keyTimes="0;0.32;0.7;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.32;0.33;0.7;0.71;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+              </svg>
+              <div class="widget__caption">
+                발행자는 채널에만 메시지를 보내고, 구독자는 채널을 통해 동시에 수신합니다. 발행자는 누가 받는지 알 필요가 없습니다.
+              </div>
+            </div>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · Pub/Sub 기본 동작</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="SUBSCRIBE news.tech"><span class="try__badge">REDIS</span>SUBSCRIBE news.tech</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='PUBLISH news.tech "Redis 7.4 released"'><span class="try__badge">REDIS</span>PUBLISH news.tech</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="PUBSUB CHANNELS"><span class="try__badge">REDIS</span>PUBSUB CHANNELS</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="PUBSUB NUMSUB news.tech"><span class="try__badge">REDIS</span>PUBSUB NUMSUB</button>
+            </div>
+
+            <div class="note note--info">
+              <strong>플레이그라운드 동작</strong>
+              실제 redis-cli에서는 SUBSCRIBE 이후 입력이 막히지만, 이 페이지는 같은 세션에서 PUBLISH도 가능하도록 가상 구독으로 처리합니다. 메시지가 도착하면 분홍색 [push] 라인으로 표시됩니다.
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>패턴 구독 — PSUBSCRIBE<span class="acc__tag">06.1.2</span></summary>
+          <div class="acc__body">
+            <p>채널 이름을 하나씩 지정하는 대신 글롭 패턴으로 여러 채널을 한 번에 구독할 수 있습니다. 채널이 동적으로 생기는 환경에서 유용합니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> PSUBSCRIBE news.*
+<span class="c-result">1) "psubscribe"
+2) "news.*"
+3) (integer) 1</span>
+
+<span class="c-prompt">&gt;</span> PUBLISH news.tech "v1"
+<span class="c-result">(integer) 1</span>
+
+<span class="c-prompt">&gt;</span> PUBLISH news.sports "v2"
+<span class="c-result">(integer) 1</span></pre></div>
+
+            <p>패턴 구독에서는 메시지가 도착할 때 어떤 패턴이 매칭됐는지도 함께 전달됩니다. 일반 메시지의 <code>message</code> 대신 <code>pmessage</code> 타입으로 구분됩니다.</p>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · 패턴 구독</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="PSUBSCRIBE news.*"><span class="try__badge">REDIS</span>PSUBSCRIBE news.*</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='PUBLISH news.tech "tech update"'><span class="try__badge">REDIS</span>PUBLISH news.tech</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='PUBLISH news.sports "sports update"'><span class="try__badge">REDIS</span>PUBLISH news.sports</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="PUBSUB NUMPAT"><span class="try__badge">REDIS</span>PUBSUB NUMPAT</button>
+            </div>
+
+            <div class="note note--warn">
+              <strong>비용</strong>
+              패턴 매칭은 PUBLISH가 발생할 때마다 모든 활성 패턴과 비교해야 합니다. 패턴 구독자가 많을수록 PUBLISH의 비용이 <strong>O(N)</strong>으로 증가합니다.
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>한계와 메시지 손실<span class="acc__tag">06.1.3</span></summary>
+          <div class="acc__body">
+            <p>Pub/Sub은 빠르고 단순한 만큼, 운영 환경에서 주의해야 할 한계가 있습니다.</p>
+
+            <h4>구독자가 없으면 메시지가 사라짐</h4>
+            <p>구독자가 한 명도 없을 때 발행된 메시지는 그대로 사라집니다. 구독자가 잠시 끊겨 있어도 그 사이에 발행된 메시지는 받을 수 없습니다.</p>
+
+            <h4>처리 보장 없음</h4>
+            <p>구독자가 메시지를 받았는지, 정상적으로 처리했는지 발행자는 알 수 없습니다. 처리 보장이 필요한 시나리오라면 <strong>Stream</strong>을 사용해야 합니다.</p>
+
+            <h4>클러스터 환경에서의 비효율</h4>
+            <p>일반 Pub/Sub은 클러스터의 모든 노드에 메시지가 브로드캐스트됩니다. 노드가 많을수록 네트워크 비용이 커집니다.</p>
+            <p>Redis 7.0부터는 같은 슬롯에 속한 노드끼리만 메시지를 주고받는 Sharded Pub/Sub 방식이 <code>SSUBSCRIBE</code>, <code>SPUBLISH</code> 명령어와 함께 추가됐습니다.</p>
+
+            <table>
+              <thead>
+                <tr><th>구분</th><th>일반 Pub/Sub</th><th>Sharded Pub/Sub</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>명령어</td><td><code>SUBSCRIBE</code> / <code>PUBLISH</code></td><td><code>SSUBSCRIBE</code> / <code>SPUBLISH</code></td></tr>
+                <tr><td>도입</td><td>Redis 2.0</td><td>Redis 7.0</td></tr>
+                <tr><td>클러스터 동작</td><td>모든 노드에 브로드캐스트</td><td>해당 슬롯 담당 노드만</td></tr>
+              </tbody>
+            </table>
+
+            <div class="widget">
+              <span class="widget__label">Comparison · Animation</span>
+              <div class="widget__title">Redis 클러스터에서의 메시지 전파 — 일반 Pub/Sub vs Sharded Pub/Sub</div>
+              <p style="font-size: 12px; color: var(--text-muted); margin: 8px 0 14px;">Redis 클러스터는 16,384개 슬롯을 여러 노드에 분산 저장합니다. 채널 이름은 해시 함수로 슬롯에 매핑되는데, 두 방식은 이 슬롯 정보를 활용하는 방식이 다릅니다.</p>
+              <svg viewBox="0 0 500 320" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <marker id="arr-shard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1" />
+                  </marker>
+                </defs>
+
+                <text x="10" y="16" font-size="11" font-weight="800" fill="#1e293b">① 일반 Pub/Sub — 모든 노드에 브로드캐스트</text>
+                <text x="10" y="32" font-size="10" fill="#94a3b8">slot 정보 무시 · 클러스터의 모든 노드에 동일한 메시지가 복사됨</text>
+
+                <rect x="10" y="44" width="60" height="40" rx="6" fill="white" stroke="#d1d5db" />
+                <text x="40" y="62" text-anchor="middle" font-size="9" fill="#1e293b">Publisher</text>
+                <text x="40" y="76" text-anchor="middle" font-size="9" fill="#dc2626" font-family="monospace">news.tech</text>
+
+                <line x1="70" y1="64" x2="160" y2="64" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arr-shard)" />
+
+                <rect x="165" y="44" width="60" height="40" rx="4" fill="rgba(220,38,38,0.15)" stroke="#dc2626" stroke-width="1.5" />
+                <text x="195" y="62" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="800">Node 1</text>
+                <text x="195" y="76" text-anchor="middle" font-size="8" fill="#dc2626">slot 0-5460</text>
+
+                <rect x="240" y="44" width="60" height="40" rx="4" fill="rgba(220,38,38,0.15)" stroke="#dc2626" stroke-width="1.5" />
+                <text x="270" y="62" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="800">Node 2</text>
+                <text x="270" y="76" text-anchor="middle" font-size="8" fill="#dc2626">slot 5461-10922</text>
+
+                <rect x="315" y="44" width="60" height="40" rx="4" fill="rgba(220,38,38,0.15)" stroke="#dc2626" stroke-width="1.5" />
+                <text x="345" y="62" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="800">Node 3</text>
+                <text x="345" y="76" text-anchor="middle" font-size="8" fill="#dc2626">slot 10923-16383</text>
+
+                <rect x="390" y="44" width="60" height="40" rx="4" fill="rgba(220,38,38,0.15)" stroke="#dc2626" stroke-width="1.5" />
+                <text x="420" y="62" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="800">Node 4</text>
+                <text x="420" y="76" text-anchor="middle" font-size="8" fill="#dc2626">replica</text>
+
+                <line x1="165" y1="96" x2="225" y2="96" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2 2" />
+                <line x1="240" y1="96" x2="300" y2="96" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2 2" />
+                <line x1="315" y1="96" x2="375" y2="96" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2 2" />
+                <line x1="390" y1="96" x2="450" y2="96" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2 2" />
+
+                <circle r="4" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="195;195" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="64;96" keyTimes="0;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.4;0.8;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+                <circle r="4" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="270;270" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="64;96" keyTimes="0;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.4;0.8;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+                <circle r="4" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="345;345" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="64;96" keyTimes="0;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.4;0.8;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+                <circle r="4" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="420;420" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="64;96" keyTimes="0;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.4;0.8;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+
+                <line x1="0" y1="160" x2="500" y2="160" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4 4" />
+
+                <text x="10" y="186" font-size="11" font-weight="800" fill="#1e293b">② Sharded Pub/Sub — 해당 슬롯 노드만</text>
+                <text x="10" y="202" font-size="10" fill="#94a3b8">채널 <tspan font-family="monospace" fill="#dc2626">news.tech</tspan> → 해시 → slot 7092 → Node 2 + 복제본 Node 4만 수신</text>
+
+                <rect x="10" y="216" width="60" height="40" rx="6" fill="white" stroke="#d1d5db" />
+                <text x="40" y="234" text-anchor="middle" font-size="9" fill="#1e293b">Publisher</text>
+                <text x="40" y="248" text-anchor="middle" font-size="9" fill="#dc2626" font-family="monospace">news.tech</text>
+
+                <line x1="70" y1="236" x2="160" y2="236" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arr-shard)" />
+
+                <rect x="165" y="216" width="60" height="40" rx="4" fill="rgba(148,163,184,0.05)" stroke="#e5e7eb" stroke-dasharray="3 3" />
+                <text x="195" y="234" text-anchor="middle" font-size="9" fill="#cbd5e1" font-weight="700">Node 1</text>
+                <text x="195" y="248" text-anchor="middle" font-size="8" fill="#cbd5e1">미전달</text>
+
+                <rect x="240" y="216" width="60" height="40" rx="4" fill="rgba(220,38,38,0.15)" stroke="#dc2626" stroke-width="1.5" />
+                <text x="270" y="234" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="800">Node 2</text>
+                <text x="270" y="248" text-anchor="middle" font-size="8" fill="#dc2626">slot 7092 ✓</text>
+
+                <rect x="315" y="216" width="60" height="40" rx="4" fill="rgba(148,163,184,0.05)" stroke="#e5e7eb" stroke-dasharray="3 3" />
+                <text x="345" y="234" text-anchor="middle" font-size="9" fill="#cbd5e1" font-weight="700">Node 3</text>
+                <text x="345" y="248" text-anchor="middle" font-size="8" fill="#cbd5e1">미전달</text>
+
+                <rect x="390" y="216" width="60" height="40" rx="4" fill="rgba(220,38,38,0.15)" stroke="#dc2626" stroke-width="1.5" />
+                <text x="420" y="234" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="800">Node 4</text>
+                <text x="420" y="248" text-anchor="middle" font-size="8" fill="#dc2626">Node 2 replica ✓</text>
+
+                <line x1="240" y1="268" x2="300" y2="268" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2 2" />
+                <line x1="390" y1="268" x2="450" y2="268" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2 2" />
+
+                <circle r="4" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="270;270" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="236;268" keyTimes="0;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.4;0.8;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+                <circle r="4" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="420;420" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="236;268" keyTimes="0;1" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.4;0.8;1" dur="3s" repeatCount="indefinite" />
+                </circle>
+              </svg>
+              <div class="widget__caption">
+                일반 Pub/Sub은 채널이 어느 슬롯에 매핑됐는지 무시하고 클러스터의 모든 노드에 메시지를 보냅니다. 노드 수만큼 네트워크 비용이 증가하는 구조입니다. Sharded Pub/Sub은 채널이 매핑된 슬롯의 책임 노드(와 그 복제본)에만 메시지를 전달해 비용을 절감합니다.
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>언제 쓰면 좋은가<span class="acc__tag">06.1.4</span></summary>
+          <div class="acc__body">
+            <p>Pub/Sub은 메시지가 사라져도 영향이 적은 시나리오에 적합합니다. 대표적인 사용처는 다음과 같습니다.</p>
+
+            <ul>
+              <li><strong>실시간 알림</strong> — 새로운 댓글, 좋아요 같은 이벤트를 즉시 전달</li>
+              <li><strong>캐시 무효화</strong> — 여러 인스턴스에 캐시 갱신 신호를 동시에 보내기</li>
+              <li><strong>채팅의 타이핑 표시</strong> — 상대방이 입력 중이라는 일시적 정보 전달</li>
+              <li><strong>대시보드 업데이트</strong> — 실시간 지표를 모든 뷰어에게 전송</li>
+            </ul>
+
+            <p>반대로 결제, 주문, 외부 시스템 연동처럼 한 건이라도 누락되면 안 되는 이벤트는 <strong>Stream</strong>이나 외부 메시지 브로커를 사용해야 합니다.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Section 2</div>
+        <h2 class="ch__title">List를 메시징 큐로 사용하기</h2>
+        <p class="ch__desc">List는 <code>LPUSH</code>, <code>RPUSH</code>, <code>LPOP</code>, <code>RPOP</code>으로 양 끝에서 데이터를 넣고 뺄 수 있어, 애플리케이션 특성에 맞는 메시징 큐를 직접 구현하기 적절한 자료 구조입니다.</p>
+
+        <details class="acc" open>
+          <summary>List 큐의 기본 동작<span class="acc__tag">06.2.1</span></summary>
+          <div class="acc__body">
+            <p>한쪽 끝으로 넣고 반대쪽 끝으로 꺼내면 FIFO 큐가 됩니다. 가장 흔한 조합은 <code>LPUSH</code>(왼쪽 삽입)와 <code>RPOP</code>(오른쪽 추출)입니다. 둘 다 O(1)이라 큐의 길이와 상관없이 일정한 속도로 동작합니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> LPUSH tasks "task-1"
+<span class="c-result">(integer) 1</span>
+<span class="c-prompt">&gt;</span> LPUSH tasks "task-2"
+<span class="c-result">(integer) 2</span>
+<span class="c-prompt">&gt;</span> LPUSH tasks "task-3"
+<span class="c-result">(integer) 3</span>
+
+<span class="c-comment"># 큐 상태:  [task-3] [task-2] [task-1]
+#            ↑ head(왼쪽)         tail(오른쪽) ↑</span>
+
+<span class="c-prompt">&gt;</span> RPOP tasks
+<span class="c-result">"task-1"</span>
+<span class="c-prompt">&gt;</span> RPOP tasks
+<span class="c-result">"task-2"</span></pre></div>
+
+            <p>먼저 들어간 <code>task-1</code>이 먼저 나옵니다. 반대로 <code>LPUSH</code> + <code>LPOP</code> 조합은 LIFO 스택이 됩니다.</p>
+
+            <div class="widget">
+              <span class="widget__label">Animation</span>
+              <div class="widget__title">List 큐 — LPUSH + RPOP</div>
+              <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <marker id="arr-list" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1" />
+                  </marker>
+                </defs>
+
+                <text x="50" y="55" text-anchor="middle" font-size="11" font-weight="800" fill="#dc2626">LPUSH</text>
+                <line x1="20" y1="100" x2="92" y2="100" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arr-list)" />
+
+                <text x="130" y="70" text-anchor="middle" font-size="9" fill="#94a3b8" font-weight="700">← HEAD</text>
+                <rect x="100" y="80" width="60" height="40" rx="4" fill="white" stroke="#d1d5db" />
+                <text x="130" y="105" text-anchor="middle" font-size="11" fill="#1e293b">task-3</text>
+
+                <rect x="165" y="80" width="60" height="40" rx="4" fill="white" stroke="#d1d5db" />
+                <text x="195" y="105" text-anchor="middle" font-size="11" fill="#1e293b">task-2</text>
+
+                <rect x="230" y="80" width="60" height="40" rx="4" fill="white" stroke="#d1d5db" />
+                <text x="260" y="105" text-anchor="middle" font-size="11" fill="#1e293b">task-1</text>
+
+                <rect x="295" y="80" width="60" height="40" rx="4" fill="white" stroke="#e5e7eb" stroke-dasharray="3 3" />
+                <rect x="360" y="80" width="60" height="40" rx="4" fill="white" stroke="#e5e7eb" stroke-dasharray="3 3" />
+                <text x="390" y="70" text-anchor="middle" font-size="9" fill="#94a3b8" font-weight="700">TAIL →</text>
+
+                <text x="450" y="55" text-anchor="middle" font-size="11" font-weight="800" fill="#dc2626">RPOP</text>
+                <line x1="423" y1="100" x2="490" y2="100" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arr-list)" />
+
+                <circle r="5" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="25;95" keyTimes="0;1" dur="2.4s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="100;100" dur="2.4s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.1;0.45;0.5;1" dur="2.4s" repeatCount="indefinite" />
+                </circle>
+                <circle r="5" fill="#dc2626" opacity="0">
+                  <animate attributeName="cx" values="425;485" keyTimes="0;1" dur="2.4s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values="100;100" dur="2.4s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.5;0.55;0.9;1" dur="2.4s" repeatCount="indefinite" />
+                </circle>
+              </svg>
+              <div class="widget__caption">
+                왼쪽 head에 새 아이템이 들어오고 오른쪽 tail에서 먼저 들어간 아이템이 빠져나갑니다. 두 동작 모두 O(1)이라 큐 길이와 상관없이 일정한 속도로 동작합니다.
+              </div>
+            </div>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · 기본 큐 동작</span>
+              <button class="try try--redis" data-engine="redis" data-cmd='LPUSH tasks "task-1"'><span class="try__badge">REDIS</span>LPUSH tasks "task-1"</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='LPUSH tasks "task-2"'><span class="try__badge">REDIS</span>LPUSH tasks "task-2"</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='LPUSH tasks "task-3"'><span class="try__badge">REDIS</span>LPUSH tasks "task-3"</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="LRANGE tasks 0 -1"><span class="try__badge">REDIS</span>LRANGE tasks 0 -1</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="RPOP tasks"><span class="try__badge">REDIS</span>RPOP tasks</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="LLEN tasks"><span class="try__badge">REDIS</span>LLEN tasks</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>조건부 추가 — RPUSHX<span class="acc__tag">06.2.2</span></summary>
+          <div class="acc__body">
+            <p><code>RPUSHX</code>는 List가 이미 존재할 때만 아이템을 추가하는 커맨드입니다. 키가 없으면 아무 일도 일어나지 않고 0을 반환합니다.</p>
+
+            <h4>트위터 타임라인 캐시</h4>
+            <p>트위터는 각 유저의 타임라인 캐시 데이터를 List 자료구조로 관리합니다. 유저 A가 트윗을 작성하면 A를 팔로우하는 모든 유저의 타임라인 캐시 List에 새 아이템이 추가되어야 합니다. 다만 자주 접속하지 않는 유저까지 캐시를 유지할 필요는 없습니다.</p>
+
+            <p>이때 <code>RPUSHX</code>를 사용하면 이미 캐시된 타임라인에만 데이터를 추가할 수 있습니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-comment"># userB는 활성 유저 — 타임라인 캐시가 이미 존재함</span>
+<span class="c-prompt">&gt;</span> RPUSHX TimelineCache:userB "new-tweet-from-A"
+<span class="c-result">(integer) 26</span>
+
+<span class="c-comment"># userD는 비활성 유저 — 타임라인 캐시가 없음</span>
+<span class="c-prompt">&gt;</span> RPUSHX TimelineCache:userD "new-tweet-from-A"
+<span class="c-result">(integer) 0</span></pre></div>
+
+            <p>비활성 유저 D의 캐시는 만들지 않고 그냥 넘어갑니다. 캐시 존재 여부를 애플리케이션에서 미리 확인하는 과정이 사라지므로, 불필요한 왕복이 줄어듭니다.</p>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · RPUSHX 동작 비교</span>
+              <button class="try try--redis" data-engine="redis" data-cmd='RPUSH TimelineCache:userB "data1" "data2"'><span class="try__badge">REDIS</span>RPUSH userB 초기화</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='RPUSHX TimelineCache:userB "data3"'><span class="try__badge">REDIS</span>RPUSHX userB (있음)</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='RPUSHX TimelineCache:userD "data3"'><span class="try__badge">REDIS</span>RPUSHX userD (없음)</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="LRANGE TimelineCache:userB 0 -1"><span class="try__badge">REDIS</span>LRANGE userB</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="EXISTS TimelineCache:userD"><span class="try__badge">REDIS</span>EXISTS userD</button>
+            </div>
+
+            <p>같은 동작을 하는 왼쪽 버전 <code>LPUSHX</code>도 있습니다.</p>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>블로킹 기능 — BRPOP / BLPOP<span class="acc__tag">06.2.3</span></summary>
+          <div class="acc__body">
+            <p>이벤트 큐를 폴링 방식으로 처리하면 두 가지 단점이 있습니다.</p>
+
+            <ul>
+              <li>폴링 인터벌 동안 큐를 반복 확인하면서 애플리케이션과 큐의 리소스를 불필요하게 소모합니다</li>
+              <li>이벤트가 들어와도 폴링 인터벌이 지나야만 처리할 수 있어 즉시 처리가 어렵습니다</li>
+            </ul>
+
+            <p><code>BRPOP</code>과 <code>BLPOP</code>은 <code>RPOP</code>과 <code>LPOP</code>에 블로킹 기능을 추가한 커맨드입니다. 데이터가 있으면 즉시 반환하고, 없으면 데이터가 들어올 때까지 대기하다가 들어온 값을 반환합니다. 타임아웃을 설정할 수 있으며, 타임아웃 시에는 <code>nil</code>을 반환합니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> BRPOP queue:a 5
+<span class="c-comment"># queue:a에 데이터가 들어올 때까지 최대 5초 대기
+# 0을 주면 무한 대기</span>
+
+<span class="c-result">1) "queue:a"
+2) "data"</span></pre></div>
+
+            <p><code>BRPOP</code>은 <code>RPOP</code>과 달리 두 개의 값을 반환합니다. 첫 번째는 팝된 리스트의 키, 두 번째는 값입니다. 여러 리스트에서 동시에 대기할 수 있도록 설계됐기 때문입니다.</p>
+
+            <h4>여러 리스트 동시 대기 — 우선순위 큐</h4>
+            <p><code>BRPOP</code>은 여러 키를 한 번에 받을 수 있습니다. 왼쪽에 적힌 키부터 확인해서, 데이터가 있는 첫 큐의 값을 반환합니다. 우선순위 큐를 이렇게 구현할 수 있습니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> BRPOP queue.high queue.normal queue.low 0
+<span class="c-comment"># high → normal → low 순서로 확인
+# 셋 다 비어 있으면 데이터가 들어올 때까지 무한 대기</span>
+
+<span class="c-result">1) "queue.normal"
+2) "task-A"</span></pre></div>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · 블로킹과 폴링</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="DEL tasks"><span class="try__badge">REDIS</span>DEL tasks</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="BRPOP tasks 3"><span class="try__badge">REDIS</span>BRPOP tasks 3 (3초 대기)</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='LPUSH tasks "urgent"'><span class="try__badge">REDIS</span>3초 안에 LPUSH</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="BRPOP queue.high queue.normal queue.low 0"><span class="try__badge">REDIS</span>BRPOP 우선순위 큐</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='LPUSH queue.normal "task-A"'><span class="try__badge">REDIS</span>LPUSH queue.normal</button>
+            </div>
+
+            <div class="note note--warn">
+              <strong>커넥션 점유</strong>
+              <code>BRPOP</code>이 실행 중인 커넥션은 블로킹 상태로 점유됩니다. 같은 커넥션에서 다른 명령은 수행되지 않으므로, 블로킹 커맨드는 별도 커넥션에서 호출해야 합니다.
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>원형 큐 — RPOPLPUSH<span class="acc__tag">06.2.4</span></summary>
+          <div class="acc__body">
+            <p>특정 아이템을 반복적으로 접근하거나, 여러 클라이언트가 같은 아이템 집합을 병렬로 처리해야 할 때 원형 큐가 필요합니다. <code>RPOPLPUSH</code>는 tail에서 꺼낸 데이터를 head에 다시 넣는 순환 구조를 만듭니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> LPUSH clist A
+<span class="c-prompt">&gt;</span> LPUSH clist B
+<span class="c-prompt">&gt;</span> LPUSH clist C
+
+<span class="c-prompt">&gt;</span> LRANGE clist 0 -1
+<span class="c-result">1) "C"
+2) "B"
+3) "A"</span>
+
+<span class="c-prompt">&gt;</span> RPOPLPUSH clist clist
+<span class="c-result">"A"</span>
+
+<span class="c-prompt">&gt;</span> LRANGE clist 0 -1
+<span class="c-result">1) "A"
+2) "C"
+3) "B"</span></pre></div>
+
+            <p>tail에 있던 <code>A</code>가 head로 이동했습니다. 같은 키로 두 번 지정하면 자기 자신을 순환합니다. 다른 키로 지정하면 한 리스트에서 다른 리스트로 데이터가 옮겨갑니다.</p>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · 원형 큐</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="DEL clist"><span class="try__badge">REDIS</span>DEL clist</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='LPUSH clist "A" "B" "C"'><span class="try__badge">REDIS</span>LPUSH clist A B C</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="LRANGE clist 0 -1"><span class="try__badge">REDIS</span>LRANGE 확인</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="RPOPLPUSH clist clist"><span class="try__badge">REDIS</span>RPOPLPUSH 1회</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="RPOPLPUSH clist clist"><span class="try__badge">REDIS</span>RPOPLPUSH 2회</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="LRANGE clist 0 -1"><span class="try__badge">REDIS</span>LRANGE 다시 확인</button>
+            </div>
+
+            <p>Redis 6.2부터는 <code>RPOPLPUSH</code> 대신 방향을 자유롭게 지정할 수 있는 <code>LMOVE</code>가 권장됩니다. <code>LMOVE src dst RIGHT LEFT</code>가 <code>RPOPLPUSH src dst</code>와 같은 동작입니다.</p>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>List vs Stream<span class="acc__tag">06.2.5</span></summary>
+          <div class="acc__body">
+            <p>List 큐는 단순하고 빠르지만 처리 보장 측면에서 한계가 있습니다. 컨슈머가 <code>RPOP</code> 또는 <code>BRPOP</code>으로 메시지를 꺼내는 순간 그 메시지는 큐에서 사라집니다. 처리 도중 컨슈머가 죽으면 그 메시지는 복구할 방법이 없습니다.</p>
+
+            <p>책 다음 절에서 다루는 Stream은 이 한계를 Consumer Group과 보류 리스트(PEL)로 해결합니다. 두 자료구조를 정리하면 다음과 같습니다.</p>
+
+            <table>
+              <thead>
+                <tr><th>구분</th><th>List</th><th>Stream</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>메시지 보존</td><td>소비 시 삭제</td><td>보존됨 (ACK와 무관)</td></tr>
+                <tr><td>처리 보장</td><td>없음</td><td>ACK 기반</td></tr>
+                <tr><td>장애 복구</td><td>불가</td><td>PEL로 재할당 가능</td></tr>
+                <tr><td>다수 컨슈머</td><td>경쟁 소비 (한 명만 받음)</td><td>Consumer Group으로 분산</td></tr>
+                <tr><td>적합한 상황</td><td>단순한 작업 큐, 이벤트 큐</td><td>대규모 메시징, 분산 처리</td></tr>
+              </tbody>
+            </table>
+
+            <p>처리 보장이나 장애 복구가 필요하면 Stream을 선택하고, 단순한 작업 분배라면 List로 충분합니다.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Section 3</div>
+        <h2 class="ch__title">Stream의 도입과 데이터 식별</h2>
+        <p class="ch__desc">Stream은 Redis 5.0에서 추가된 자료구조로, Append-only 방식으로 데이터가 쌓이는 로그 형태의 구조입니다. 이 섹션에서는 Stream이 등장한 배경과, Kafka와 비교했을 때 데이터를 어떻게 식별하는지를 정리합니다.</p>
+
+        <details class="acc" open>
+          <summary>Stream의 도입 배경<span class="acc__tag">06.3.1</span></summary>
+          <div class="acc__body">
+            <p>Section 1에서 다룬 메시징 큐와 이벤트 스트림의 구분에서, Stream은 이벤트 스트림 쪽에 해당합니다. 메시지를 소비해도 사라지지 않고 보존되며, 여러 소비자가 같은 데이터를 다른 시점에 읽을 수 있습니다.</p>
+
+            <h4>등장 배경</h4>
+            <p>대규모 메시징 데이터 처리에서 가장 먼저 고려되는 시스템은 Apache Kafka입니다. LinkedIn에서 처음 개발되어 2011년 오픈소스로 공개됐고, 현재는 Confluent에서 관리하고 있습니다. 정확하게는 Apache Software Foundation 산하 프로젝트로, Confluent는 Kafka의 창립 개발자들이 세운 회사로 주요 컨트리뷰터이자 상업 지원을 맡고 있습니다. Redis Stream은 Kafka에서 영향을 받아 만들어졌으며 유사한 기능을 제공합니다.</p>
+
+            <p>Stream을 활용하는 관점은 크게 두 가지로 나눌 수 있습니다.</p>
+
+            <ul>
+              <li><strong>백엔드 개발자 관점</strong> — 대량의 메시지를 효율적으로 처리하는 플랫폼으로 사용</li>
+              <li><strong>데이터 엔지니어 관점</strong> — 여러 생산자와 소비자가 데이터를 주고받는 저장소이자 중간 큐잉 시스템으로 사용</li>
+            </ul>
+
+            <h4>스트림이라는 개념</h4>
+            <p>스트림은 연속적인 데이터의 흐름, 일정한 데이터 조각의 연속을 의미합니다. 10GB짜리 텍스트 파일을 단어나 줄 단위로 잘게 쪼개 처리하는 바이트 스트림, 채팅 프로그램의 메시지를 처리하는 JSON 스트림이 대표적입니다. 외부 입력뿐 아니라 애플리케이션 내부 서버 간 데이터 이동도 스트림에 해당합니다.</p>
+
+            <p>스트리밍 플랫폼을 직접 구축하기는 쉽지 않습니다. Kafka나 Redis Stream을 활용하면 더 안정적으로 처리할 수 있고, 스트리밍 플랫폼을 시스템 중심에 두면 모든 데이터 처리를 한 곳에서 관리할 수 있습니다.</p>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>데이터 단위와 식별 — Kafka와의 비교<span class="acc__tag">06.3.2</span></summary>
+          <div class="acc__body">
+            <p>Kafka와 Redis Stream은 데이터를 저장하고 식별하는 방식에서 몇 가지 차이가 있습니다.</p>
+
+            <table>
+              <thead>
+                <tr><th>구분</th><th>Kafka</th><th>Redis Stream</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>데이터 단위</td><td>토픽(Topic)</td><td>Stream 자료구조 (하나의 키)</td></tr>
+                <tr><td>메시지 식별</td><td>시퀀스 넘버 (0부터 증가)</td><td>메시지 ID (시간 기반)</td></tr>
+                <tr><td>유니크 범위</td><td>토픽 내 파티션 안에서만</td><td>Stream 전체</td></tr>
+                <tr><td>시간 기반 검색</td><td>불가</td><td>가능</td></tr>
+                <tr><td>사전 생성</td><td>토픽을 미리 생성 필요</td><td>XADD로 자동 생성</td></tr>
+              </tbody>
+            </table>
+
+            <div class="widget">
+              <span class="widget__label">Comparison</span>
+              <div class="widget__title">메시지 식별 방식 — Kafka vs Redis Stream</div>
+              <svg viewBox="0 0 500 240" xmlns="http://www.w3.org/2000/svg">
+                <text x="125" y="18" text-anchor="middle" font-size="11" font-weight="800" fill="#0f172a">Kafka — Topic: Email</text>
+                <text x="125" y="32" text-anchor="middle" font-size="9" fill="#94a3b8">파티션 내부 시퀀스</text>
+
+                <rect x="20" y="44" width="210" height="48" rx="4" fill="rgba(15,23,42,0.04)" stroke="#cbd5e1" />
+                <text x="30" y="60" font-size="9" fill="#64748b" font-weight="700">partition 0</text>
+                <text x="50" y="82" font-size="13" font-family="monospace" fill="#0f172a">0  1  2</text>
+
+                <rect x="20" y="100" width="210" height="48" rx="4" fill="rgba(15,23,42,0.04)" stroke="#cbd5e1" />
+                <text x="30" y="116" font-size="9" fill="#64748b" font-weight="700">partition 1</text>
+                <text x="50" y="138" font-size="13" font-family="monospace" fill="#0f172a">0  1</text>
+
+                <rect x="20" y="156" width="210" height="48" rx="4" fill="rgba(15,23,42,0.04)" stroke="#cbd5e1" />
+                <text x="30" y="172" font-size="9" fill="#64748b" font-weight="700">partition 2</text>
+                <text x="50" y="194" font-size="13" font-family="monospace" fill="#0f172a">0  1  2  3</text>
+
+                <text x="375" y="18" text-anchor="middle" font-size="11" font-weight="800" fill="#dc2626">Redis — Stream: Email</text>
+                <text x="375" y="32" text-anchor="middle" font-size="9" fill="#94a3b8">시간 기반 유니크 ID</text>
+
+                <rect x="270" y="44" width="210" height="160" rx="4" fill="rgba(220,38,38,0.04)" stroke="#fca5a5" />
+                <text x="290" y="68" font-size="11" font-family="monospace" fill="#1e293b">1659114481311-0</text>
+                <text x="290" y="92" font-size="11" font-family="monospace" fill="#1e293b">1659114481312-0</text>
+                <text x="290" y="116" font-size="11" font-family="monospace" fill="#1e293b">1659114481313-0</text>
+                <text x="290" y="140" font-size="11" font-family="monospace" fill="#1e293b">1659114482155-0</text>
+                <text x="290" y="164" font-size="11" font-family="monospace" fill="#1e293b">1659114482155-1</text>
+                <text x="290" y="188" font-size="11" font-family="monospace" fill="#1e293b">1659114483091-0</text>
+              </svg>
+              <div class="widget__caption">
+                Kafka는 토픽 안 파티션마다 0부터 시퀀스가 시작되어 유니크 범위가 파티션 내부로 한정됩니다. Redis Stream의 ID는 <code>밀리세컨드-시퀀스</code> 형식으로 stream 전체에서 유니크하며, 값 자체가 시간을 의미합니다.
+              </div>
+            </div>
+
+            <h4>Redis 메시지 ID 구조</h4>
+            <p>Redis Stream의 메시지 ID는 다음 형식을 가집니다.</p>
+
+            <div class="cmd-box"><pre>&lt;millisecondsTime&gt;-&lt;sequenceNumber&gt;</pre></div>
+
+            <ul>
+              <li><strong>밀리세컨드 파트</strong> — Stream에 아이템이 저장되는 시점의 Redis 노드 로컬 시간</li>
+              <li><strong>시퀀스 파트</strong> — 동일한 밀리세컨드에 여러 아이템이 저장될 수 있어 순서를 의미. 64bit 정수</li>
+            </ul>
+
+            <p>모든 데이터가 유니크한 ID를 가지며 ID 값이 시간을 의미하므로, 시간으로 특정 데이터를 검색할 수 있다는 장점이 있습니다.</p>
+
+            <h4>스트림 생성 방식 차이</h4>
+            <p>Kafka는 토픽을 먼저 생성한 뒤 프로듀서로 메시지를 전송하지만, Redis는 별도의 Stream 생성 과정이 필요하지 않습니다. <code>XADD</code> 명령어로 새 이름의 Stream에 데이터를 저장하면 자동 생성됩니다. 다음 절에서 실제 명령어로 비교해 봅니다.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Section 4</div>
+        <h2 class="ch__title">Stream 데이터 입력과 조회</h2>
+        <p class="ch__desc"><code>XADD</code>로 데이터를 입력하고, <code>XREAD</code>로 실시간 리스닝, <code>XRANGE</code>로 시간대 조회를 합니다. Kafka CLI와 직접 비교하면서 차이를 정리합니다.</p>
+
+        <details class="acc" open>
+          <summary>데이터 입력 — XADD<span class="acc__tag">06.4.1</span></summary>
+          <div class="acc__body">
+            <p>Kafka는 토픽을 먼저 만들고 프로듀서로 메시지를 보내는 두 단계를 거칩니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">$</span> kafka-topics --create --topic Email --partitions 1 --replication-factor 1
+<span class="c-prompt">$</span> kafka-console-producer --bootstrap-server localhost:9092 --topic Email
+<span class="c-prompt">&gt;</span> "I am first email"
+<span class="c-prompt">&gt;</span> "I am second email"</pre></div>
+
+            <p>Redis Stream은 토픽 생성 과정이 없습니다. <code>XADD</code>로 곧바로 데이터를 넣으면 Stream이 자동 생성됩니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> XADD Email * subject "first" body "hello?"
+<span class="c-result">"1659114481311-0"</span></pre></div>
+
+            <h4>커맨드 구조</h4>
+            <p><code>XADD</code>의 첫 번째 인자는 Stream 키, 두 번째 인자는 메시지 ID입니다. ID 자리에 <code>*</code>를 넣으면 Redis가 타임스탬프 기반 ID를 자동 생성합니다. 메시지 본문은 키-값 쌍의 연속으로, Hash처럼 메시지마다 유동적인 필드를 저장할 수 있습니다.</p>
+
+            <h4>ID 직접 지정</h4>
+            <p>ID를 자동 생성하는 대신 직접 지정할 수도 있습니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> XADD mystream 0-1 hello world
+<span class="c-result">"0-1"</span>
+
+<span class="c-prompt">&gt;</span> XADD mystream 0-2 hi redis
+<span class="c-result">"0-2"</span></pre></div>
+
+            <p>최소 ID 값은 <code>0-1</code>이며, 이후 저장되는 ID는 이전에 저장된 ID보다 작은 값으로 지정할 수 없습니다. 단조 증가 제약을 어기면 에러가 발생합니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> XADD mystream 0-1 should fail
+<span class="c-result">(error) ERR The ID specified in XADD is equal or smaller than the target stream top item</span></pre></div>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · Kafka와 Redis 비교</span>
+              <button class="try try--kafka" data-engine="kafka" data-cmd="kafka-topics --create --topic Email --partitions 1 --replication-factor 1"><span class="try__badge">KAFKA</span>토픽 생성</button>
+              <button class="try try--kafka" data-engine="kafka" data-cmd="kafka-topics --list"><span class="try__badge">KAFKA</span>토픽 목록</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='XADD Email * subject "first" body "hello?"'><span class="try__badge">REDIS</span>XADD Email (자동 ID)</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='XADD Email * subject "second" body "world"'><span class="try__badge">REDIS</span>XADD Email (한 번 더)</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='XADD mystream 0-1 hello world'><span class="try__badge">REDIS</span>XADD mystream 0-1</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='XADD mystream 0-2 hi redis'><span class="try__badge">REDIS</span>XADD mystream 0-2</button>
+              <button class="try try--redis" data-engine="redis" data-cmd='XADD mystream 0-1 should fail'><span class="try__badge">REDIS</span>ID 역행 시도</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XLEN Email"><span class="try__badge">REDIS</span>XLEN Email</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>실시간 리스닝 — XREAD<span class="acc__tag">06.4.2</span></summary>
+          <div class="acc__body">
+            <p><code>XREAD</code>는 하나 또는 여러 Stream에서 데이터를 읽는 명령어입니다. Kafka 소비자가 토픽을 실시간 리스닝하는 것과 비슷한 역할을 합니다.</p>
+
+            <div class="cmd-box"><pre>XREAD [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] ID [ID ...]</pre></div>
+
+            <h4>ID 인자의 의미</h4>
+            <p>Stream 키 뒤의 ID는 어디서부터 읽을지를 지정합니다.</p>
+
+            <ul>
+              <li><code>0</code> — 처음부터 모든 데이터를 읽음 (지정한 ID보다 큰 값)</li>
+              <li><code>$</code> — 커맨드 실행 이후 저장되는 메시지만 읽음 (현재 시점의 최대 ID)</li>
+              <li>특정 ID — 해당 ID보다 큰 메시지부터 읽음</li>
+            </ul>
+
+            <div class="cmd-box"><pre><span class="c-comment"># Email Stream을 처음부터 읽고, 최대 2건만</span>
+<span class="c-prompt">&gt;</span> XREAD COUNT 2 STREAMS Email 0
+
+<span class="c-comment"># 커맨드 실행 이후 새로 들어오는 메시지만 대기</span>
+<span class="c-prompt">&gt;</span> XREAD BLOCK 0 STREAMS Email $</pre></div>
+
+            <h4>BLOCK 옵션</h4>
+            <p><code>BLOCK</code>은 새 메시지가 들어올 때까지 대기하도록 합니다. <code>BLOCK 0</code>은 무한 대기, <code>BLOCK 1000</code>은 1초 대기를 의미합니다.</p>
+
+            <h4>Kafka와의 비교</h4>
+            <p>Kafka 소비자는 기본적으로 리스닝 시작 시점 이후의 메시지만 받으며, <code>--from-beginning</code> 옵션을 줘야 처음부터 읽습니다. Redis Stream은 이 차이를 ID 값으로 제어합니다. <code>0</code>이면 처음부터, <code>$</code>면 현재 시점부터입니다.</p>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · XREAD 동작</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREAD COUNT 2 STREAMS Email 0"><span class="try__badge">REDIS</span>XREAD 처음부터 2건</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREAD STREAMS Email 0"><span class="try__badge">REDIS</span>XREAD 처음부터 전부</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREAD BLOCK 0 STREAMS Email $"><span class="try__badge">REDIS</span>XREAD BLOCK 0 (현재 이후)</button>
+              <button class="try try--kafka" data-engine="kafka" data-cmd="kafka-console-consumer --bootstrap-server localhost:9092 --topic Email --from-beginning"><span class="try__badge">KAFKA</span>--from-beginning</button>
+            </div>
+
+            <div class="note note--info">
+              <strong>플레이그라운드 동작</strong>
+              실제 Redis에서는 <code>BLOCK</code> 옵션이 새 데이터가 들어올 때까지 커넥션을 점유하며 대기하지만, 이 페이지의 Mock 엔진에서는 <code>BLOCK</code> 인자가 무시되고 즉시 결과를 반환합니다. 옵션 형식과 의미만 확인하는 용도로 사용합니다.
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>시간대 조회 — XRANGE<span class="acc__tag">06.4.3</span></summary>
+          <div class="acc__body">
+            <p><code>XRANGE</code>는 ID 범위를 지정해서 Stream의 데이터를 조회합니다. <code>XREAD</code>가 리스닝에 가깝다면 <code>XRANGE</code>는 검색에 가깝습니다.</p>
+
+            <div class="cmd-box"><pre>XRANGE key start end [COUNT count]
+XREVRANGE key end start [COUNT count]</pre></div>
+
+            <h4>특수 ID 표기</h4>
+            <ul>
+              <li><code>-</code> — 가장 작은 ID (Stream의 시작)</li>
+              <li><code>+</code> — 가장 큰 ID (Stream의 끝)</li>
+              <li><code>(</code> — 해당 ID를 제외하고 다음부터 조회 (열린 구간)</li>
+            </ul>
+
+            <div class="cmd-box"><pre><span class="c-comment"># 전체 데이터 조회</span>
+<span class="c-prompt">&gt;</span> XRANGE Email - +
+
+<span class="c-comment"># 처음 2건만</span>
+<span class="c-prompt">&gt;</span> XRANGE Email - + COUNT 2
+
+<span class="c-comment"># 특정 타임스탬프 범위</span>
+<span class="c-prompt">&gt;</span> XRANGE Email 1659114481310 1659114481319
+
+<span class="c-comment"># 특정 ID를 제외하고 그 다음부터</span>
+<span class="c-prompt">&gt;</span> XRANGE Email (1659114481311-0 +</pre></div>
+
+            <h4>XREVRANGE</h4>
+            <p><code>XREVRANGE</code>는 <code>XRANGE</code>의 역순입니다. 가장 최근 데이터부터 조회할 때 사용합니다. 인자 순서가 <code>end start</code>로 바뀐다는 점에 주의합니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> XREVRANGE Email + - COUNT 1
+<span class="c-comment"># 가장 최근 메시지 1건</span></pre></div>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · XRANGE 동작</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="XRANGE Email - +"><span class="try__badge">REDIS</span>XRANGE 전체</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XRANGE Email - + COUNT 2"><span class="try__badge">REDIS</span>XRANGE COUNT 2</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREVRANGE Email + -"><span class="try__badge">REDIS</span>XREVRANGE 역순</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREVRANGE Email + - COUNT 1"><span class="try__badge">REDIS</span>XREVRANGE 최근 1건</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>XREAD vs XRANGE<span class="acc__tag">06.4.4</span></summary>
+          <div class="acc__body">
+            <p>두 명령어는 모두 Stream 데이터를 읽지만 동작 방식이 다릅니다.</p>
+
+            <table>
+              <thead>
+                <tr><th>구분</th><th>XREAD</th><th>XRANGE</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>동작 방식</td><td>리스닝 (대기 가능)</td><td>조회 (즉시 반환)</td></tr>
+                <tr><td>종료 조건</td><td>BLOCK 시간 종료 또는 결과 수신</td><td>지정 범위 끝까지 읽으면 종료</td></tr>
+                <tr><td>역순 지원</td><td>없음</td><td><code>XREVRANGE</code>로 지원</td></tr>
+                <tr><td>주 용도</td><td>실시간 메시지 처리</td><td>저장된 데이터 검색</td></tr>
+              </tbody>
+            </table>
+
+            <p>실시간으로 새 메시지를 받아 처리해야 하면 <code>XREAD</code>, 특정 시간대의 데이터를 찾아야 하면 <code>XRANGE</code>를 사용합니다.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Section 5</div>
+        <h2 class="ch__title">Consumer Group</h2>
+        <p class="ch__desc">여러 소비자가 같은 Stream을 나눠서 처리해야 할 때 사용하는 기능입니다. Kafka의 Consumer Group과 이름은 같지만 동작 방식에는 차이가 있습니다.</p>
+
+        <details class="acc" open>
+          <summary>Consumer Group의 도입 배경<span class="acc__tag">06.5.1</span></summary>
+          <div class="acc__body">
+            <p>여러 소비자가 같은 Stream을 읽는 방식은 크게 두 가지입니다.</p>
+
+            <h4>Fan-out — 같은 데이터를 여러 소비자에게 전달</h4>
+            <p>같은 메시지를 여러 소비자가 각자 받아 처리하는 방식입니다. Kafka에서는 같은 토픽을 여러 소비자가 읽도록 설정하면 자연스럽게 fan-out이 됩니다. Redis Stream에서도 여러 소비자가 각자 <code>XREAD</code>를 실행하면 같은 데이터를 모두 받습니다.</p>
+
+            <h4>분산 처리 — 같은 데이터를 나눠서 처리</h4>
+            <p>같은 데이터를 여러 소비자가 나눠서 가져가야 할 때도 있습니다. 메시지를 병렬로 처리해 성능을 높이려는 경우입니다. 이때 순서 보장이 필요한지 여부에 따라 처리 방식이 달라집니다.</p>
+
+            <ul>
+              <li><strong>순서 보장 필요</strong> — 티켓 결제 (카드 유효성 검사 → 잔고 확인 → 결제)</li>
+              <li><strong>순서 보장 불필요</strong> — 회원 가입 이메일 발송 (가입 순서와 무관)</li>
+            </ul>
+
+            <h4>순서 보장 방식의 차이</h4>
+            <table>
+              <thead>
+                <tr><th>구분</th><th>Redis Stream</th><th>Kafka</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>유니크 키 범위</td><td>Stream 전체</td><td>파티션 내부</td></tr>
+                <tr><td>순서 보장</td><td>항상 보장</td><td>파티션 내부에서만 보장</td></tr>
+                <tr><td>fan-out 시 순서</td><td>유지됨</td><td>여러 파티션에서 읽으면 깨짐</td></tr>
+              </tbody>
+            </table>
+
+            <div class="widget">
+              <span class="widget__label">Comparison · Animation</span>
+              <div class="widget__title">fan-out 시 메시지 순서 — Kafka vs Redis Stream</div>
+              <svg viewBox="0 0 500 300" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <marker id="arr-order" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1" />
+                  </marker>
+                </defs>
+
+                <text x="10" y="16" font-size="11" font-weight="800" fill="#0f172a">Kafka (3 partitions)</text>
+                <text x="10" y="32" font-size="9" fill="#94a3b8">메시지가 해시로 여러 파티션에 분배되어 도착 순서가 뒤섞임</text>
+
+                <rect x="10" y="40" width="60" height="80" rx="4" fill="white" stroke="#cbd5e1" />
+                <text x="40" y="55" text-anchor="middle" font-size="8" fill="#64748b" font-weight="700">producer</text>
+                <text x="40" y="85" text-anchor="middle" font-size="11" font-weight="800" fill="#0f172a">1 2 3</text>
+                <text x="40" y="105" text-anchor="middle" font-size="11" font-weight="800" fill="#0f172a">4 5</text>
+
+                <rect x="180" y="40" width="120" height="20" rx="3" fill="rgba(15,23,42,0.04)" stroke="#cbd5e1" />
+                <text x="190" y="54" font-size="9" fill="#64748b" font-weight="700">partition 0</text>
+                <text x="265" y="54" text-anchor="middle" font-size="11" font-family="monospace" fill="#0f172a">1, 2</text>
+
+                <rect x="180" y="68" width="120" height="20" rx="3" fill="rgba(15,23,42,0.04)" stroke="#cbd5e1" />
+                <text x="190" y="82" font-size="9" fill="#64748b" font-weight="700">partition 1</text>
+                <text x="265" y="82" text-anchor="middle" font-size="11" font-family="monospace" fill="#0f172a">3, 4</text>
+
+                <rect x="180" y="96" width="120" height="20" rx="3" fill="rgba(15,23,42,0.04)" stroke="#cbd5e1" />
+                <text x="190" y="110" font-size="9" fill="#64748b" font-weight="700">partition 2</text>
+                <text x="265" y="110" text-anchor="middle" font-size="11" font-family="monospace" fill="#0f172a">5</text>
+
+                <rect x="410" y="40" width="80" height="80" rx="4" fill="white" stroke="#cbd5e1" />
+                <text x="450" y="55" text-anchor="middle" font-size="8" fill="#64748b" font-weight="700">consumer 도착 순서</text>
+                <text x="450" y="78" text-anchor="middle" font-size="13" font-family="monospace" font-weight="700" fill="#0f172a">1, 3, 2,</text>
+                <text x="450" y="98" text-anchor="middle" font-size="13" font-family="monospace" font-weight="700" fill="#0f172a">5, 4</text>
+
+                <line x1="70" y1="80" x2="178" y2="50" stroke="#cbd5e1" stroke-width="1" />
+                <line x1="70" y1="80" x2="178" y2="78" stroke="#cbd5e1" stroke-width="1" />
+                <line x1="70" y1="80" x2="178" y2="106" stroke="#cbd5e1" stroke-width="1" />
+                <line x1="300" y1="50" x2="408" y2="78" stroke="#cbd5e1" stroke-width="1" />
+                <line x1="300" y1="78" x2="408" y2="80" stroke="#cbd5e1" stroke-width="1" />
+                <line x1="300" y1="106" x2="408" y2="82" stroke="#cbd5e1" stroke-width="1" />
+
+                <line x1="0" y1="150" x2="500" y2="150" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4 4" />
+
+                <text x="10" y="172" font-size="11" font-weight="800" fill="#dc2626">Redis Stream (single stream)</text>
+                <text x="10" y="188" font-size="9" fill="#94a3b8">단일 stream에 순서대로 저장되어 도착 순서가 그대로 유지됨</text>
+
+                <rect x="10" y="200" width="60" height="80" rx="4" fill="white" stroke="#cbd5e1" />
+                <text x="40" y="215" text-anchor="middle" font-size="8" fill="#64748b" font-weight="700">producer</text>
+                <text x="40" y="245" text-anchor="middle" font-size="11" font-weight="800" fill="#0f172a">1 2 3</text>
+                <text x="40" y="265" text-anchor="middle" font-size="11" font-weight="800" fill="#0f172a">4 5</text>
+
+                <rect x="120" y="220" width="270" height="40" rx="4" fill="rgba(220,38,38,0.04)" stroke="#fca5a5" />
+                <text x="130" y="234" font-size="9" fill="#dc2626" font-weight="700">stream: Email</text>
+                <text x="255" y="252" text-anchor="middle" font-size="13" font-family="monospace" fill="#0f172a">1 → 2 → 3 → 4 → 5</text>
+
+                <rect x="410" y="200" width="80" height="80" rx="4" fill="white" stroke="#cbd5e1" />
+                <text x="450" y="215" text-anchor="middle" font-size="8" fill="#64748b" font-weight="700">consumer 도착 순서</text>
+                <text x="450" y="245" text-anchor="middle" font-size="13" font-family="monospace" font-weight="700" fill="#0f172a">1, 2, 3,</text>
+                <text x="450" y="265" text-anchor="middle" font-size="13" font-family="monospace" font-weight="700" fill="#0f172a">4, 5</text>
+
+                <line x1="70" y1="240" x2="118" y2="240" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arr-order)" />
+                <line x1="390" y1="240" x2="408" y2="240" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arr-order)" />
+              </svg>
+              <div class="widget__caption">
+                Kafka는 메시지가 해시로 여러 파티션에 분배되어, 컨슈머가 파티션을 순회하면서 읽을 때 도착 순서가 원본과 달라집니다. Redis Stream은 단일 stream에 시간 순으로 저장되므로 도착 순서가 그대로 유지됩니다.
+              </div>
+            </div>
+
+            <p>Redis Stream은 데이터를 저장할 때마다 고유 ID를 부여하기 때문에 순서대로 저장되며, 소비자에게 전달될 때도 순서가 항상 보장됩니다. Kafka는 메시지가 토픽에 저장될 때 해시 함수로 여러 파티션에 분배되는데, 파티션 사이의 순서는 보장되지 않습니다. Kafka에서 메시지 순서를 보장하려면 Consumer Group을 사용해야 합니다.</p>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>Consumer Group 동작 방식 — Kafka와의 비교<span class="acc__tag">06.5.2</span></summary>
+          <div class="acc__body">
+            <p>Kafka와 Redis Stream은 Consumer Group이라는 이름은 같지만 부하 분산 방식이 다릅니다.</p>
+
+            <table>
+              <thead>
+                <tr><th>구분</th><th>Kafka Consumer Group</th><th>Redis Consumer Group</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>부하 분산 방식</td><td>소비자-파티션 1:1 매핑</td><td><code>last_delivered_id</code>로 상태 관리</td></tr>
+                <tr><td>소비자별 할당</td><td>각 소비자가 특정 파티션 담당</td><td>아직 읽지 않은 데이터를 순차 분배</td></tr>
+                <tr><td>소비할 메시지 개수 지정</td><td>불가</td><td>COUNT 옵션으로 가능</td></tr>
+              </tbody>
+            </table>
+
+            <div class="widget">
+              <span class="widget__label">Comparison</span>
+              <div class="widget__title">Consumer Group 분배 방식 — Kafka vs Redis Stream</div>
+              <svg viewBox="0 0 500 300" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <marker id="arr-cg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1" />
+                  </marker>
+                </defs>
+
+                <text x="10" y="16" font-size="11" font-weight="800" fill="#0f172a">Kafka — 소비자와 파티션 1:1 매핑</text>
+
+                <rect x="20" y="32" width="120" height="20" rx="3" fill="rgba(15,23,42,0.04)" stroke="#cbd5e1" />
+                <text x="80" y="46" text-anchor="middle" font-size="10" fill="#0f172a">partition 0</text>
+
+                <rect x="20" y="60" width="120" height="20" rx="3" fill="rgba(15,23,42,0.04)" stroke="#cbd5e1" />
+                <text x="80" y="74" text-anchor="middle" font-size="10" fill="#0f172a">partition 1</text>
+
+                <rect x="20" y="88" width="120" height="20" rx="3" fill="rgba(15,23,42,0.04)" stroke="#cbd5e1" />
+                <text x="80" y="102" text-anchor="middle" font-size="10" fill="#0f172a">partition 2</text>
+
+                <line x1="140" y1="42" x2="335" y2="42" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arr-cg)" />
+                <line x1="140" y1="70" x2="335" y2="70" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arr-cg)" />
+                <line x1="140" y1="98" x2="335" y2="98" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arr-cg)" />
+
+                <rect x="340" y="32" width="140" height="20" rx="3" fill="white" stroke="#cbd5e1" />
+                <text x="410" y="46" text-anchor="middle" font-size="10" fill="#1e293b">Consumer 1</text>
+
+                <rect x="340" y="60" width="140" height="20" rx="3" fill="white" stroke="#cbd5e1" />
+                <text x="410" y="74" text-anchor="middle" font-size="10" fill="#1e293b">Consumer 2</text>
+
+                <rect x="340" y="88" width="140" height="20" rx="3" fill="white" stroke="#cbd5e1" />
+                <text x="410" y="102" text-anchor="middle" font-size="10" fill="#1e293b">Consumer 3</text>
+
+                <text x="250" y="130" text-anchor="middle" font-size="9" fill="#94a3b8" font-style="italic">각 소비자가 담당 파티션의 메시지만 순서대로 읽음</text>
+
+                <line x1="0" y1="150" x2="500" y2="150" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4 4" />
+
+                <text x="10" y="172" font-size="11" font-weight="800" fill="#dc2626">Redis Stream — last_delivered_id 기반 순차 분배</text>
+
+                <rect x="20" y="188" width="220" height="76" rx="4" fill="rgba(220,38,38,0.04)" stroke="#fca5a5" />
+                <text x="30" y="204" font-size="9" fill="#dc2626" font-weight="700">stream: Email</text>
+                <text x="34" y="234" font-size="11" font-family="monospace" fill="#1e293b">msg-1 msg-2 msg-3 msg-4</text>
+                <text x="34" y="252" font-size="9" fill="#94a3b8" font-style="italic">↑ last_delivered_id 갱신</text>
+
+                <line x1="240" y1="198" x2="335" y2="198" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arr-cg)" />
+                <line x1="240" y1="226" x2="335" y2="226" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arr-cg)" />
+                <line x1="240" y1="254" x2="335" y2="254" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arr-cg)" />
+
+                <rect x="340" y="188" width="140" height="20" rx="3" fill="white" stroke="#fca5a5" />
+                <text x="410" y="202" text-anchor="middle" font-size="10" fill="#1e293b">Consumer 1 ← msg-1</text>
+
+                <rect x="340" y="216" width="140" height="20" rx="3" fill="white" stroke="#fca5a5" />
+                <text x="410" y="230" text-anchor="middle" font-size="10" fill="#1e293b">Consumer 2 ← msg-2</text>
+
+                <rect x="340" y="244" width="140" height="20" rx="3" fill="white" stroke="#fca5a5" />
+                <text x="410" y="258" text-anchor="middle" font-size="10" fill="#1e293b">Consumer 3 ← msg-3</text>
+
+                <text x="250" y="284" text-anchor="middle" font-size="9" fill="#94a3b8" font-style="italic">소비자가 XREADGROUP 호출하는 순서대로 다음 메시지를 가져감</text>
+              </svg>
+              <div class="widget__caption">
+                Kafka는 소비자와 파티션이 고정적으로 매핑되어 각 소비자가 자신의 파티션만 읽습니다. Redis Stream은 어떤 소비자가 먼저 <code>XREADGROUP</code>을 호출하든 <code>last_delivered_id</code>가 갱신되어 다음 메시지가 순차 분배됩니다.
+              </div>
+            </div>
+
+            <h4>Kafka 방식</h4>
+            <p>여러 소비자가 토픽 내 파티션과 1:1로 연결됩니다. 파티션 내부에서는 순서가 보장되므로 각 소비자는 자신이 담당하는 파티션의 메시지를 순서대로 읽습니다. 메시지 처리 위치는 Kafka가 자체적으로 관리합니다.</p>
+
+            <h4>Redis Stream 방식</h4>
+            <p>Consumer Group은 Stream의 상태를 나타내는 개념입니다. 그룹 내 한 소비자가 메시지를 읽으면 다른 소비자는 그 메시지를 읽지 않으며, <code>last_delivered_id</code>가 갱신되어 동일한 메시지가 중복 전달되는 것을 방지합니다. 소비자는 한 번에 읽을 메시지 개수를 <code>COUNT</code> 옵션으로 직접 지정할 수 있습니다.</p>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>XGROUP CREATE — 소비자 그룹 생성<span class="acc__tag">06.5.3</span></summary>
+          <div class="acc__body">
+            <p>Consumer Group을 사용하려면 먼저 <code>XGROUP CREATE</code>로 그룹을 생성해야 합니다.</p>
+
+            <div class="cmd-box"><pre>XGROUP CREATE &lt;key&gt; &lt;groupname&gt; &lt;id&gt; [MKSTREAM]</pre></div>
+
+            <p>마지막 인자는 그룹이 어느 시점부터 메시지를 받을지를 지정합니다.</p>
+
+            <ul>
+              <li><code>$</code> — 현재 시점 이후 새로 들어오는 메시지부터 리스닝</li>
+              <li><code>0</code> — Stream의 처음부터 리스닝 (저장된 모든 데이터 포함)</li>
+              <li>특정 ID — 해당 ID 이후의 메시지부터 리스닝</li>
+            </ul>
+
+            <div class="cmd-box"><pre><span class="c-comment"># Email Stream의 처음부터 리스닝하는 그룹 생성</span>
+<span class="c-prompt">&gt;</span> XGROUP CREATE Email EmailServiceGroup 0
+<span class="c-result">OK</span>
+
+<span class="c-comment"># 같은 이름으로 다시 생성하면 에러</span>
+<span class="c-prompt">&gt;</span> XGROUP CREATE Email EmailServiceGroup 0
+<span class="c-result">(error) BUSYGROUP Consumer Group name already exists</span></pre></div>
+
+            <p>Stream이 없는 상태에서 그룹을 만들려면 <code>MKSTREAM</code> 옵션을 함께 줍니다. 빈 Stream이 자동 생성됩니다.</p>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · 소비자 그룹 생성</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="XGROUP CREATE Email EmailServiceGroup 0"><span class="try__badge">REDIS</span>XGROUP CREATE (처음부터)</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XGROUP CREATE Email EmailServiceGroup 0"><span class="try__badge">REDIS</span>중복 생성 시도</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XGROUP CREATE NewStream NewGroup $ MKSTREAM"><span class="try__badge">REDIS</span>MKSTREAM 옵션</button>
+            </div>
+
+            <div class="note note--info">
+              <strong>이어서 따라가기</strong>
+              이 섹션의 Try-it은 6.4.1에서 만든 Email Stream을 그대로 사용합니다. Reset을 눌렀거나 Email Stream이 비어 있다면 먼저 6.4.1로 돌아가 <code>XADD Email * subject "first" body "hello?"</code>를 두 번 정도 실행해 데이터를 만들어 주세요.
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>XREADGROUP — 소비자 그룹으로 데이터 읽기<span class="acc__tag">06.5.4</span></summary>
+          <div class="acc__body">
+            <p><code>XREADGROUP</code>은 <code>XREAD</code>와 형태가 비슷하지만 지정한 소비자 그룹을 통해 메시지를 읽습니다.</p>
+
+            <div class="cmd-box"><pre>XREADGROUP GROUP &lt;group&gt; &lt;consumer&gt; [COUNT n] [BLOCK ms] [NOACK]
+           STREAMS &lt;key&gt; [&lt;key&gt; ...] &lt;id&gt; [&lt;id&gt; ...]</pre></div>
+
+            <h4>소비자 이름</h4>
+            <p>그룹 안에서 소비자를 고유하게 식별할 이름을 지정합니다. 처음 호출될 때 자동 생성되므로 별도로 만들 필요는 없습니다.</p>
+
+            <h4>ID 인자의 의미</h4>
+            <ul>
+              <li><code>&gt;</code> — 다른 소비자에게 전달되지 않은 새 메시지만 받음 (가장 자주 쓰는 형태)</li>
+              <li><code>0</code> 또는 다른 ID — 해당 ID보다 큰 ID 중 이 소비자의 보류 리스트(Pending List)에 있는 메시지 반환</li>
+            </ul>
+
+            <div class="cmd-box"><pre><span class="c-comment"># EmailServiceGroup의 emailService1 소비자가 새 메시지 1개를 가져옴</span>
+<span class="c-prompt">&gt;</span> XREADGROUP GROUP EmailServiceGroup emailService1 COUNT 1 STREAMS Email &gt;
+
+<span class="c-comment"># 같은 소비자가 자신의 보류 리스트에 있는 메시지를 다시 확인</span>
+<span class="c-prompt">&gt;</span> XREADGROUP GROUP EmailServiceGroup emailService1 STREAMS Email 0</pre></div>
+
+            <h4>하나의 그룹으로 여러 Stream 리스닝</h4>
+            <p>여러 Stream을 한 그룹에서 함께 리스닝할 수도 있습니다. BI 서비스가 Email과 Push 두 Stream을 동시에 처리하는 경우가 예시입니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> XGROUP CREATE Email BIGroup 0
+<span class="c-prompt">&gt;</span> XGROUP CREATE Push BIGroup 0 MKSTREAM
+
+<span class="c-prompt">&gt;</span> XREADGROUP GROUP BIGroup BI1 COUNT 2 STREAMS Email Push &gt; &gt;</pre></div>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · 소비자 그룹으로 읽기</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREADGROUP GROUP EmailServiceGroup emailService1 COUNT 1 STREAMS Email >"><span class="try__badge">REDIS</span>새 메시지 1개</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREADGROUP GROUP EmailServiceGroup emailService2 COUNT 1 STREAMS Email >"><span class="try__badge">REDIS</span>다른 소비자가 다음 메시지</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREADGROUP GROUP EmailServiceGroup emailService1 STREAMS Email 0"><span class="try__badge">REDIS</span>emailService1 보류 리스트</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XGROUP CREATE Push BIGroup 0 MKSTREAM"><span class="try__badge">REDIS</span>Push Stream + BIGroup</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XGROUP CREATE Email BIGroup 0"><span class="try__badge">REDIS</span>Email에도 BIGroup</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREADGROUP GROUP BIGroup BI1 COUNT 2 STREAMS Email Push > >"><span class="try__badge">REDIS</span>여러 Stream 동시 리스닝</button>
+            </div>
+
+            <div class="note note--warn">
+              <strong>마스터 노드 전용</strong>
+              <code>XREADGROUP</code>은 소비자 그룹의 상태를 변경하는 쓰기 명령어로 간주됩니다. 복제본(레플리카) 노드가 아닌 마스터 노드에서만 호출할 수 있습니다.
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Section 6</div>
+        <h2 class="ch__title">보류 리스트와 메시지 처리 보장</h2>
+        <p class="ch__desc">소비자가 메시지를 받았다고 처리가 끝난 것은 아닙니다. 처리 도중 장애가 나면 그 메시지는 어떻게 될까요. Redis Stream은 보류 리스트(Pending Entries List, PEL)로 이 문제를 다룹니다.</p>
+
+        <details class="acc" open>
+          <summary>보류 리스트 (PEL)<span class="acc__tag">06.6.1</span></summary>
+          <div class="acc__body">
+            <p>여러 서비스가 메시지 브로커를 통해 데이터를 처리할 때, 예상치 못한 장애로 시스템이 종료되면 이를 인지하고 재처리할 수 있어야 합니다. 메시지 브로커는 각 소비자에게 어떤 메시지를 전달했고, 그 메시지가 정상적으로 처리됐는지 인지하고 있어야 합니다.</p>
+
+            <p>Redis Stream은 이를 위해 <strong>보류 리스트(Pending Entries List, PEL)</strong>를 관리합니다. 소비자 그룹에 속한 소비자가 메시지를 읽으면, 각 소비자별로 읽어간 메시지 리스트가 새로 생성되고, 마지막으로 읽어간 데이터의 ID로 <code>last_delivered_id</code>가 갱신됩니다.</p>
+
+            <h4>ACK 처리</h4>
+            <p>소비자가 메시지 처리를 완료하면 Stream에 ACK를 보냅니다. Stream은 해당 소비자의 보류 리스트에서 ACK를 받은 메시지를 삭제합니다. 보류 리스트에 남아 있는 메시지는 전달은 됐지만 아직 처리 완료 신호를 받지 못한 메시지입니다.</p>
+
+            <h4>장애 복구 시나리오</h4>
+            <p>이메일 서비스에 장애가 발생해 재부팅해야 하는 상황에서, Stream의 보류 리스트에 남아 있는 데이터를 먼저 불러와 처리하면 메시지를 놓치지 않고 처리할 수 있습니다. 데이터 처리가 완료된 후 애플리케이션에서 <code>XACK</code>를 주기적으로 전송하는 작업이 필요합니다.</p>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>XPENDING / XACK<span class="acc__tag">06.6.2</span></summary>
+          <div class="acc__body">
+            <p><code>XPENDING</code>은 소비자 그룹의 보류 리스트 상태를 확인하고, <code>XACK</code>는 메시지 처리 완료를 알립니다.</p>
+
+            <div class="note note--info">
+              <strong>이어서 따라가기</strong>
+              이 섹션의 Try-it은 6.5.4의 <code>XREADGROUP</code> 실행 결과를 그대로 사용합니다. <code>emailService1</code>과 <code>emailService2</code>가 메시지를 하나씩 받은 상태에서 시작합니다. Reset을 눌렀거나 처음부터 시작한다면 6.4.1과 6.5.3, 6.5.4 순서로 다시 실행해 주세요.
+            </div>
+
+            <h4>XPENDING — 보류 메시지 확인</h4>
+            <div class="cmd-box"><pre>XPENDING &lt;key&gt; &lt;groupname&gt; [&lt;start-id&gt; &lt;end-id&gt; &lt;count&gt; [&lt;consumer-name&gt;]]</pre></div>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> XPENDING Email EmailServiceGroup
+<span class="c-result">1) (integer) 2
+2) "1659114481311-0"
+3) "1659170735630-0"
+4) 1) 1) "emailService1"
+      2) "1"
+   2) 1) "emailService2"
+      2) "1"</span></pre></div>
+
+            <p>반환값은 네 가지 정보를 담고 있습니다.</p>
+
+            <table>
+              <thead>
+                <tr><th>인덱스</th><th>의미</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>1)</td><td>ACK를 받지 못해 보류 중인 메시지 개수</td></tr>
+                <tr><td>2)</td><td>보류 중인 메시지 ID의 최솟값</td></tr>
+                <tr><td>3)</td><td>보류 중인 메시지 ID의 최댓값</td></tr>
+                <tr><td>4)</td><td>각 소비자별 보류 리스트 개수</td></tr>
+              </tbody>
+            </table>
+
+            <h4>XACK — 처리 완료 알림</h4>
+            <div class="cmd-box"><pre>XACK &lt;key&gt; &lt;group&gt; &lt;id&gt; [&lt;id&gt; ...]</pre></div>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> XACK Email EmailServiceGroup 1659114481311-0
+<span class="c-result">(integer) 1</span></pre></div>
+
+            <p>Email Stream의 <code>EmailServiceGroup</code>에 속한 소비자가 해당 ID의 메시지를 처리했다는 의미입니다. 반환값은 실제로 ACK 처리된 메시지 개수입니다. <code>XACK</code> 이후 <code>XPENDING</code>을 다시 호출하면 보류 메시지 개수가 줄어든 것을 확인할 수 있습니다.</p>
+
+            <div class="widget" id="widget-pel">
+              <span class="widget__label">Interactive</span>
+              <div class="widget__title">PEL — XREADGROUP → XACK 흐름</div>
+              <svg viewBox="0 0 500 260" xmlns="http://www.w3.org/2000/svg">
+                <text x="10" y="16" font-size="11" font-weight="800" fill="#dc2626">Stream: Email</text>
+                <rect x="10" y="24" width="180" height="220" rx="4" fill="rgba(220,38,38,0.04)" stroke="#fca5a5" />
+
+                <g id="pel-stream-msg-1">
+                  <rect x="22" y="38" width="156" height="32" rx="3" fill="white" stroke="#d1d5db" />
+                  <text x="100" y="58" text-anchor="middle" font-size="11" font-family="monospace" fill="#1e293b">msg-1</text>
+                </g>
+                <g id="pel-stream-msg-2">
+                  <rect x="22" y="78" width="156" height="32" rx="3" fill="white" stroke="#d1d5db" />
+                  <text x="100" y="98" text-anchor="middle" font-size="11" font-family="monospace" fill="#1e293b">msg-2</text>
+                </g>
+                <g id="pel-stream-msg-3">
+                  <rect x="22" y="118" width="156" height="32" rx="3" fill="white" stroke="#d1d5db" />
+                  <text x="100" y="138" text-anchor="middle" font-size="11" font-family="monospace" fill="#1e293b">msg-3</text>
+                </g>
+
+                <text x="310" y="16" font-size="11" font-weight="800" fill="#1e293b">PEL (Pending Entries List)</text>
+
+                <rect x="220" y="24" width="270" height="100" rx="4" fill="rgba(37,99,235,0.04)" stroke="#bfdbfe" />
+                <text x="230" y="42" font-size="9" fill="#2563eb" font-weight="700">consumer-1</text>
+                <g id="pel-c1-msg-1" style="display: none;">
+                  <rect x="234" y="50" width="120" height="28" rx="3" fill="white" stroke="#bfdbfe" />
+                  <text x="294" y="68" text-anchor="middle" font-size="11" font-family="monospace" fill="#1e293b">msg-1</text>
+                </g>
+
+                <rect x="220" y="134" width="270" height="100" rx="4" fill="rgba(168,85,247,0.04)" stroke="#e9d5ff" />
+                <text x="230" y="152" font-size="9" fill="#a855f7" font-weight="700">consumer-2</text>
+                <g id="pel-c2-msg-2" style="display: none;">
+                  <rect x="234" y="160" width="120" height="28" rx="3" fill="white" stroke="#e9d5ff" />
+                  <text x="294" y="178" text-anchor="middle" font-size="11" font-family="monospace" fill="#1e293b">msg-2</text>
+                </g>
+              </svg>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
+                <button class="try try--redis" id="pel-btn-1" data-pel-action="read-1"><span class="try__badge">STEP 1</span>XREADGROUP consumer-1</button>
+                <button class="try try--redis" id="pel-btn-2" data-pel-action="read-2"><span class="try__badge">STEP 2</span>XREADGROUP consumer-2</button>
+                <button class="try try--redis" id="pel-btn-3" data-pel-action="ack-1"><span class="try__badge">STEP 3</span>XACK msg-1</button>
+                <button class="try" id="pel-btn-reset" data-pel-action="reset" style="background: var(--bg-softer); color: var(--text-muted);">Reset</button>
+              </div>
+              <div class="widget__caption" id="pel-caption">
+                STEP 1, 2, 3 순서로 누르세요. 메시지가 Stream에서 PEL로 이동했다가 XACK 후 사라지는 흐름을 확인할 수 있습니다.
+              </div>
+              <script>
+                (() => {
+                  const widget = document.getElementById('widget-pel');
+                  const state = { msg1ToC1: false, msg2ToC2: false, msg1Acked: false };
+                  const captionEl = document.getElementById('pel-caption');
+
+                  const update = () => {
+                    document.getElementById('pel-stream-msg-1').style.opacity = state.msg1ToC1 ? '0.25' : '1';
+                    document.getElementById('pel-stream-msg-2').style.opacity = state.msg2ToC2 ? '0.25' : '1';
+                    document.getElementById('pel-c1-msg-1').style.display = (state.msg1ToC1 && !state.msg1Acked) ? 'block' : 'none';
+                    document.getElementById('pel-c2-msg-2').style.display = state.msg2ToC2 ? 'block' : 'none';
+                  };
+
+                  const captions = {
+                    initial: 'STEP 1, 2, 3 순서로 누르세요. 메시지가 Stream에서 PEL로 이동했다가 XACK 후 사라지는 흐름을 확인할 수 있습니다.',
+                    'read-1': 'msg-1이 consumer-1의 PEL에 추가됩니다. Stream의 msg-1은 흐려져서 이미 전달됐음을 표시합니다.',
+                    'read-2': 'msg-2가 consumer-2의 PEL에 추가됩니다. 두 소비자가 서로 다른 메시지를 가져갔습니다.',
+                    'ack-1': 'consumer-1이 msg-1 처리를 완료해 XACK를 보냈습니다. consumer-1의 PEL에서 msg-1이 제거됩니다.'
+                  };
+
+                  widget.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-pel-action]');
+                    if (!btn) return;
+                    const action = btn.dataset.pelAction;
+                    if (action === 'read-1') state.msg1ToC1 = true;
+                    else if (action === 'read-2') state.msg2ToC2 = true;
+                    else if (action === 'ack-1') {
+                      if (!state.msg1ToC1) {
+                        captionEl.textContent = 'STEP 1을 먼저 실행해야 XACK 할 메시지가 있습니다.';
+                        return;
+                      }
+                      state.msg1Acked = true;
+                    } else if (action === 'reset') {
+                      state.msg1ToC1 = false; state.msg2ToC2 = false; state.msg1Acked = false;
+                      captionEl.textContent = captions.initial;
+                      update();
+                      return;
+                    }
+                    captionEl.textContent = captions[action] || captions.initial;
+                    update();
+                  });
+                })();
+              </script>
+            </div>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · 보류 리스트와 ACK 흐름</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="XPENDING Email EmailServiceGroup"><span class="try__badge">REDIS</span>XPENDING 확인 (시작 상태)</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XREADGROUP GROUP EmailServiceGroup emailService1 STREAMS Email 0"><span class="try__badge">REDIS</span>emailService1 보류 메시지 재조회</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XPENDING Email EmailServiceGroup"><span class="try__badge">REDIS</span>XPENDING (변화 없음)</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XACK Email EmailServiceGroup 1659114481311-0"><span class="try__badge">REDIS</span>XACK (위 메시지 ID로 교체)</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XPENDING Email EmailServiceGroup"><span class="try__badge">REDIS</span>XPENDING (1건 줄어듦)</button>
+            </div>
+
+            <div class="note note--warn">
+              <strong>실제 메시지 ID 사용</strong>
+              <code>XACK</code> 버튼의 ID <code>1659114481311-0</code>는 예시입니다. 직전 <code>XPENDING</code> 결과에 표시된 실제 메시지 ID로 바꿔서 실행해야 합니다. 터미널에 직접 입력해도 됩니다.
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>Kafka 오프셋과의 비교<span class="acc__tag">06.6.3</span></summary>
+          <div class="acc__body">
+            <p>Kafka도 Redis Stream과 비슷하게 파티션별 오프셋을 관리합니다. 다만 관리 방식과 관점에 차이가 있습니다.</p>
+
+            <table>
+              <thead>
+                <tr><th>구분</th><th>Kafka 오프셋</th><th>Redis Stream PEL</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>저장 위치</td><td><code>__consumer_offsets</code> 토픽</td><td>각 소비자별 보류 리스트</td></tr>
+                <tr><td>저장 단위</td><td>(소비자 그룹, 토픽, 파티션)</td><td>(소비자 그룹, 소비자, 메시지 ID)</td></tr>
+                <tr><td>의미</td><td>다음으로 읽어야 할 위치</td><td>전달됐지만 ACK 받지 못한 메시지</td></tr>
+                <tr><td>처리 완료 판단</td><td>오프셋이 진행됐는지로 판단</td><td>ACK 수신 여부로 판단</td></tr>
+              </tbody>
+            </table>
+
+            <p>Kafka의 오프셋은 <strong>어디까지 진행했는가</strong>를 기록하는 반면, Redis Stream의 보류 리스트는 <strong>무엇이 아직 끝나지 않았는가</strong>를 기록합니다. 같은 목적(처리 보장)을 다른 관점에서 다루는 셈입니다.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Section 7</div>
+        <h2 class="ch__title">메시지 보장 전략</h2>
+        <p class="ch__desc">메시징 시스템은 메시지 전달을 어떻게 보장할 것인가에 대해 세 가지 전략을 가집니다. 애플리케이션의 특성에 따라 적절한 전략을 선택해야 합니다.</p>
+
+        <details class="acc" open>
+          <summary>세 가지 보장 전략 개요<span class="acc__tag">06.7.1</span></summary>
+          <div class="acc__body">
+            <table>
+              <thead>
+                <tr><th>전략</th><th>ACK 시점</th><th>메시지 손실</th><th>중복 처리</th><th>적합한 상황</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>at most once</td><td>처리 전</td><td>가능</td><td>없음</td><td>일부 손실 허용, 빠른 응답 우선</td></tr>
+                <tr><td>at least once</td><td>처리 후</td><td>없음</td><td>가능</td><td>멱등한 서비스, Redis 기본 동작</td></tr>
+                <tr><td>exactly once</td><td>처리 후 + 중복 체크</td><td>없음</td><td>없음</td><td>정확히 한 번만 처리되어야 하는 경우</td></tr>
+              </tbody>
+            </table>
+
+            <div class="widget" id="widget-guarantee">
+              <span class="widget__label">Interactive</span>
+              <div class="widget__title">메시지 보장 전략 — ACK 시점 비교</div>
+              <div style="display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap;">
+                <button class="try try--redis" data-guarantee="at-most" id="g-btn-1"><span class="try__badge">A</span>at most once</button>
+                <button class="try" data-guarantee="at-least" id="g-btn-2" style="background: white; color: var(--text); border: 1px solid var(--border-strong);"><span class="try__badge" style="background: var(--text-dim);">B</span>at least once</button>
+                <button class="try" data-guarantee="exactly" id="g-btn-3" style="background: white; color: var(--text); border: 1px solid var(--border-strong);"><span class="try__badge" style="background: var(--text-dim);">C</span>exactly once</button>
+              </div>
+              <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <marker id="arr-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1" />
+                  </marker>
+                </defs>
+
+                <g id="g-step-list"></g>
+              </svg>
+              <div class="widget__caption" id="g-caption">
+                ACK가 처리 <strong>전</strong>에 전송됩니다. 빠르지만, ACK 후 소비자가 종료되면 처리되지 않은 메시지를 잃을 수 있습니다.
+              </div>
+              <script>
+                (() => {
+                  const widget = document.getElementById('widget-guarantee');
+                  const stepList = document.getElementById('g-step-list');
+                  const captionEl = document.getElementById('g-caption');
+                  const btns = widget.querySelectorAll('[data-guarantee]');
+
+                  const flows = {
+                    'at-most': [
+                      { label: 'ACK 전송', color: '#d97706' },
+                      { label: '처리', color: '#1e293b' }
+                    ],
+                    'at-least': [
+                      { label: '처리', color: '#1e293b' },
+                      { label: 'ACK 전송', color: '#16a34a' }
+                    ],
+                    'exactly': [
+                      { label: '중복 체크', color: '#2563eb' },
+                      { label: '처리', color: '#1e293b' },
+                      { label: 'Set 기록', color: '#2563eb' },
+                      { label: 'ACK 전송', color: '#16a34a' }
+                    ]
+                  };
+                  const captions = {
+                    'at-most': 'ACK가 처리 <strong>전</strong>에 전송됩니다. 빠르지만, ACK 후 소비자가 종료되면 처리되지 않은 메시지를 잃을 수 있습니다.',
+                    'at-least': 'ACK가 처리 <strong>후</strong>에 전송됩니다. 메시지 손실은 없지만, ACK 전송 전에 종료되면 같은 메시지가 다시 전달되어 중복 처리될 수 있습니다.',
+                    'exactly': '처리 전에 Set으로 <strong>중복 체크</strong>를 하고, 처리 완료 후 Set에 기록 + ACK를 보냅니다. 손실도 중복도 없지만 추가 자료구조와 단계가 필요합니다.'
+                  };
+
+                  const render = (key) => {
+                    const flow = flows[key];
+                    const totalBoxes = flow.length + 1;
+                    let boxW, fontSize;
+                    if (totalBoxes <= 3) { boxW = 100; fontSize = 11; }
+                    else if (totalBoxes === 4) { boxW = 88; fontSize = 10; }
+                    else { boxW = 74; fontSize = 9; }
+
+                    const startX = 10;
+                    const endX = 490;
+                    const arrowSpace = (endX - startX - boxW * totalBoxes) / flow.length;
+
+                    let html = '';
+                    let x = startX;
+                    html += `<rect x="${x}" y="80" width="${boxW}" height="40" rx="4" fill="white" stroke="#cbd5e1" />`;
+                    html += `<text x="${x + boxW/2}" y="105" text-anchor="middle" font-size="${fontSize}" fill="#1e293b">메시지 수신</text>`;
+                    let prevEnd = x + boxW;
+
+                    flow.forEach((step) => {
+                      x = prevEnd + arrowSpace;
+                      html += `<line x1="${prevEnd}" y1="100" x2="${x - 5}" y2="100" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arr-g)" />`;
+                      html += `<rect x="${x}" y="80" width="${boxW}" height="40" rx="4" fill="white" stroke="${step.color}" stroke-width="1.5" />`;
+                      html += `<text x="${x + boxW/2}" y="105" text-anchor="middle" font-size="${fontSize}" fill="${step.color}" font-weight="700">${step.label}</text>`;
+                      prevEnd = x + boxW;
+                    });
+                    stepList.innerHTML = html;
+                    captionEl.innerHTML = captions[key];
+
+                    btns.forEach(b => {
+                      const active = b.dataset.guarantee === key;
+                      if (active) {
+                        b.className = 'try try--redis';
+                        b.removeAttribute('style');
+                        const badge = b.querySelector('.try__badge');
+                        if (badge) badge.removeAttribute('style');
+                      } else {
+                        b.className = 'try';
+                        b.style.cssText = 'background: white; color: var(--text); border: 1px solid var(--border-strong);';
+                        const badge = b.querySelector('.try__badge');
+                        if (badge) badge.style.background = 'var(--text-dim)';
+                      }
+                    });
+                  };
+
+                  widget.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-guarantee]');
+                    if (!btn) return;
+                    render(btn.dataset.guarantee);
+                  });
+
+                  render('at-most');
+                })();
+              </script>
+            </div>
+
+            <p>Redis Stream은 기본적으로 at least once에 해당합니다. ACK 시점과 추가 로직에 따라 다른 전략으로 변형할 수 있습니다.</p>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>at most once / at least once<span class="acc__tag">06.7.2</span></summary>
+          <div class="acc__body">
+            <h4>at most once — 최대 한 번 전송</h4>
+            <p>소비자가 메시지를 받자마자 실제 처리 전에 먼저 ACK를 보내는 방식입니다. 응답 속도는 빠르지만, ACK를 보낸 뒤 소비자에 문제가 생겨 서비스가 다운되면 실제로 처리하지 못한 데이터는 잃을 수 있습니다. 메시지 일부가 손실되어도 빠른 응답이 더 중요한 경우에 선택합니다.</p>
+
+            <h4>at least once — 최소 한 번 전송</h4>
+            <p>소비자가 받은 메시지를 모두 처리한 뒤 ACK를 보냅니다. Redis Stream의 기본 동작입니다.</p>
+
+            <p>예를 들어 이메일 서버 1이 메시지 <code>129-0</code>과 <code>130-1</code>을 받은 뒤 <code>129-0</code>은 처리했지만 <code>130-1</code>은 처리하지 못한 상태에서 서비스가 재시작됐다고 가정합니다. 보류 리스트에 남아 있는 메시지를 다시 전부 읽어가기 때문에, 이미 처리한 <code>129-0</code>도 다시 처리하게 됩니다.</p>
+
+            <p>같은 메시지를 두 번 이상 처리해도 결과가 동일한 멱등(idempotent)한 서비스라면 문제가 되지 않지만, 그렇지 않은 경우 중복 처리가 문제를 일으킬 수 있습니다.</p>
+
+            <h4>중복 처리 시나리오</h4>
+            <p>ACK 전송이 지연되어 실제로 메시지가 처리됐지만 ACK 전송 전에 소비자가 종료되는 경우에도, 보류 리스트에 처리된 메시지가 남아 있어 이미 처리한 메시지를 한 번 더 처리하게 됩니다. 멱등성이 보장되지 않으면 결제 두 번 처리, 이메일 두 번 발송 같은 문제가 될 수 있습니다.</p>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>exactly once<span class="acc__tag">06.7.3</span></summary>
+          <div class="acc__body">
+            <p>모든 메시지가 무조건 한 번씩 전송되는 것을 보장하는 방식입니다. Redis Stream만으로는 직접 지원되지 않으며, 추가 자료구조를 활용해 구현해야 합니다.</p>
+
+            <h4>Set으로 중복 체크</h4>
+            <p>처리한 메시지의 ID를 Set 자료구조에 저장해 두고, 메시지를 처리하기 전에 이미 처리된 메시지인지 확인하는 패턴입니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-comment"># 메시지 처리 전 — 이미 처리한 ID인지 확인</span>
+<span class="c-prompt">&gt;</span> SISMEMBER processed:Email 1659114481311-0
+
+<span class="c-comment"># 처음 보는 ID라면 처리 후 Set에 기록 + XACK</span>
+<span class="c-prompt">&gt;</span> SADD processed:Email 1659114481311-0
+<span class="c-prompt">&gt;</span> XACK Email EmailServiceGroup 1659114481311-0</pre></div>
+
+            <p>Set 확인과 메시지 처리, ACK 전송을 트랜잭션으로 묶거나 Lua 스크립트로 처리하면 정확성을 높일 수 있습니다. 다만 Set이 무한히 커지는 것을 막기 위해 TTL을 설정하거나 주기적으로 정리하는 작업이 추가로 필요합니다.</p>
+
+            <h4>비용</h4>
+            <p>exactly once는 가장 안전하지만 추가 자료구조와 처리 단계 때문에 비용이 듭니다. 멱등성을 애플리케이션 레벨에서 보장할 수 있다면 at least once만으로 충분합니다. 결제처럼 한 번만 처리되어야 하는 작업에서 멱등성을 보장하기 어려운 경우에 exactly once를 고려합니다.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Section 8</div>
+        <h2 class="ch__title">메시지 재할당</h2>
+        <p class="ch__desc">소비자에 장애가 발생해 메시지 처리가 멈추면, 그 소비자의 보류 메시지를 다른 소비자가 대신 처리해야 합니다. Redis Stream은 이를 위한 두 가지 명령어와 dead letter 패턴을 제공합니다.</p>
+
+        <details class="acc" open>
+          <summary>메시지 재할당의 필요성<span class="acc__tag">06.8.1</span></summary>
+          <div class="acc__body">
+            <p>Redis는 소비자에 장애가 날 경우를 대비해 소비자별 보류 리스트를 유지합니다. 하지만 소비자 서버에 장애가 발생해 복구되지 않는다면, 해당 소비자가 처리하던 보류 중인 메시지들은 다른 소비자가 대신 처리해야 합니다.</p>
+
+            <p>이때 단순히 다른 소비자가 같은 메시지를 읽어가는 것만으로는 부족합니다. 같은 메시지가 여러 소비자에게 동시에 할당되면 중복 처리가 발생할 수 있어, 소유권을 명시적으로 이전하는 명령어가 필요합니다.</p>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>XCLAIM — 수동 재할당<span class="acc__tag">06.8.2</span></summary>
+          <div class="acc__body">
+            <p><code>XCLAIM</code>은 메시지의 소유권을 다른 소비자에게 할당하는 명령어입니다.</p>
+
+            <div class="cmd-box"><pre>XCLAIM &lt;key&gt; &lt;group&gt; &lt;consumer&gt; &lt;min-idle-time&gt; &lt;ID-1&gt; &lt;ID-2&gt; ... &lt;ID-N&gt;</pre></div>
+
+            <h4>min-idle-time</h4>
+            <p><code>min-idle-time</code>(최소 대기 시간)을 지정해야 합니다. 메시지가 보류 상태로 머무른 시간이 최소 대기 시간을 초과한 경우에만 소유권을 변경할 수 있어, 같은 메시지가 두 소비자에게 중복 할당되는 것을 방지합니다.</p>
+
+            <p>예를 들어 <code>EmailService3</code>에 문제가 생겨 이 소비자가 처리하던 메시지를 <code>EmailService1</code>과 <code>EmailService2</code>가 가져가려고 하는 경우, 두 소비자가 모두 <code>XCLAIM</code>을 실행하더라도 충돌이 방지됩니다.</p>
+
+            <div class="cmd-box"><pre>EmailService1: XCLAIM Email EmailServiceGroup EmailService3 3600000 1626569498055-0
+EmailService2: XCLAIM Email EmailServiceGroup EmailService3 3600000 1626569498055-0</pre></div>
+
+            <p><code>EmailService1</code>의 커맨드가 먼저 실행되면 메시지의 보류 시간이 즉시 0으로 재설정됩니다. <code>EmailService2</code>의 <code>XCLAIM</code>은 최소 대기 시간(3600000ms = 1시간)보다 메시지의 보류 시간이 짧으므로 무시되어 중복 할당이 방지됩니다.</p>
+
+            <div class="widget" id="widget-xclaim">
+              <span class="widget__label">Interactive</span>
+              <div class="widget__title">XCLAIM — 중복 할당 방지 흐름</div>
+              <svg viewBox="0 0 500 240" xmlns="http://www.w3.org/2000/svg">
+                <text x="10" y="16" font-size="11" font-weight="800" fill="#1e293b">PEL (Pending Entries List)</text>
+
+                <rect x="10" y="28" width="150" height="190" rx="4" fill="rgba(220,38,38,0.04)" stroke="#fca5a5" />
+                <text x="20" y="44" font-size="9" fill="#dc2626" font-weight="700">EmailService3 (장애)</text>
+                <text x="20" y="58" font-size="8" fill="#94a3b8">idle: <tspan id="xc-idle-3">3600s</tspan></text>
+                <g id="xc-pel-3">
+                  <rect x="20" y="68" width="130" height="28" rx="3" fill="white" stroke="#fca5a5" />
+                  <text x="85" y="86" text-anchor="middle" font-size="10" font-family="monospace" fill="#1e293b">msg-A</text>
+                </g>
+
+                <rect x="175" y="28" width="150" height="190" rx="4" fill="rgba(37,99,235,0.04)" stroke="#bfdbfe" />
+                <text x="185" y="44" font-size="9" fill="#2563eb" font-weight="700">EmailService1</text>
+                <text x="185" y="58" font-size="8" fill="#94a3b8">idle: <tspan id="xc-idle-1">0s</tspan></text>
+                <g id="xc-pel-1" style="display: none;">
+                  <rect x="185" y="68" width="130" height="28" rx="3" fill="white" stroke="#bfdbfe" />
+                  <text x="250" y="86" text-anchor="middle" font-size="10" font-family="monospace" fill="#1e293b">msg-A (claimed)</text>
+                </g>
+
+                <rect x="340" y="28" width="150" height="190" rx="4" fill="rgba(168,85,247,0.04)" stroke="#e9d5ff" />
+                <text x="350" y="44" font-size="9" fill="#a855f7" font-weight="700">EmailService2</text>
+                <text x="350" y="58" font-size="8" fill="#94a3b8">idle: <tspan id="xc-idle-2">0s</tspan></text>
+                <g id="xc-pel-2" style="display: none;">
+                  <rect x="350" y="68" width="130" height="28" rx="3" fill="white" stroke="#e9d5ff" />
+                  <text x="415" y="86" text-anchor="middle" font-size="10" font-family="monospace" fill="#1e293b">msg-A</text>
+                </g>
+
+                <text x="250" y="160" text-anchor="middle" font-size="10" font-weight="700" fill="#94a3b8" id="xc-status">초기 상태 — EmailService3의 PEL에 msg-A 보류 중 (idle 3600초)</text>
+              </svg>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
+                <button class="try try--redis" id="xc-btn-1" data-xc-action="claim-1"><span class="try__badge">STEP 1</span>EmailService1 XCLAIM (성공)</button>
+                <button class="try try--redis" id="xc-btn-2" data-xc-action="claim-2"><span class="try__badge">STEP 2</span>EmailService2 XCLAIM (실패)</button>
+                <button class="try" id="xc-btn-reset" data-xc-action="reset" style="background: var(--bg-softer); color: var(--text-muted);">Reset</button>
+              </div>
+              <div class="widget__caption" id="xc-caption">
+                STEP 1을 누르면 EmailService1이 min-idle-time 조건을 만족해 msg-A를 가져옵니다. 이때 메시지의 idle은 즉시 0으로 재설정됩니다. STEP 2를 누르면 EmailService2가 같은 메시지를 시도하지만, idle이 0이라 min-idle-time(1시간) 조건을 만족하지 못해 무시됩니다.
+              </div>
+              <script>
+                (() => {
+                  const widget = document.getElementById('widget-xclaim');
+                  const state = { step: 0 };
+                  const statusEl = document.getElementById('xc-status');
+                  const captionEl = document.getElementById('xc-caption');
+                  const idle3 = document.getElementById('xc-idle-3');
+                  const idle1 = document.getElementById('xc-idle-1');
+                  const pel3 = document.getElementById('xc-pel-3');
+                  const pel1 = document.getElementById('xc-pel-1');
+
+                  const captions = {
+                    0: 'STEP 1을 누르면 EmailService1이 min-idle-time 조건을 만족해 msg-A를 가져옵니다. 이때 메시지의 idle은 즉시 0으로 재설정됩니다. STEP 2를 누르면 EmailService2가 같은 메시지를 시도하지만, idle이 0이라 min-idle-time(1시간) 조건을 만족하지 못해 무시됩니다.',
+                    1: 'EmailService1의 XCLAIM이 성공했습니다. msg-A의 소유권이 EmailService3에서 EmailService1로 이전되고, idle 시간은 즉시 0으로 재설정됩니다. 이제 EmailService2가 같은 명령을 시도하면 어떻게 될까요?',
+                    2: 'EmailService2의 XCLAIM은 무시됩니다. msg-A의 현재 idle(0초)이 min-idle-time(3600000ms = 1시간)보다 짧기 때문입니다. 중복 할당이 방지됩니다.'
+                  };
+
+                  const update = () => {
+                    if (state.step === 0) {
+                      idle3.textContent = '3600s';
+                      idle1.textContent = '0s';
+                      pel3.style.display = 'block';
+                      pel1.style.display = 'none';
+                      statusEl.textContent = '초기 상태 — EmailService3의 PEL에 msg-A 보류 중 (idle 3600초)';
+                      statusEl.setAttribute('fill', '#94a3b8');
+                    } else if (state.step === 1) {
+                      idle3.textContent = '—';
+                      idle1.textContent = '0s';
+                      pel3.style.display = 'none';
+                      pel1.style.display = 'block';
+                      statusEl.textContent = 'XCLAIM 성공 — msg-A가 EmailService1으로 이전됨';
+                      statusEl.setAttribute('fill', '#16a34a');
+                    } else if (state.step === 2) {
+                      statusEl.textContent = '✕ XCLAIM 무시됨 — idle 0s < min-idle 3600000ms';
+                      statusEl.setAttribute('fill', '#dc2626');
+                    }
+                  };
+
+                  widget.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-xc-action]');
+                    if (!btn) return;
+                    const action = btn.dataset.xcAction;
+                    if (action === 'claim-1') {
+                      state.step = 1;
+                      captionEl.textContent = captions[1];
+                    } else if (action === 'claim-2') {
+                      if (state.step === 0) {
+                        captionEl.textContent = 'STEP 1을 먼저 실행해야 합니다.';
+                        return;
+                      }
+                      state.step = 2;
+                      captionEl.textContent = captions[2];
+                    } else if (action === 'reset') {
+                      state.step = 0;
+                      captionEl.textContent = captions[0];
+                    }
+                    update();
+                  });
+                })();
+              </script>
+            </div>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · XCLAIM 동작</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="XPENDING Email EmailServiceGroup"><span class="try__badge">REDIS</span>현재 보류 상태 확인</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XCLAIM Email EmailServiceGroup emailService3 0 1659114481311-0"><span class="try__badge">REDIS</span>emailService3가 가져옴</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XPENDING Email EmailServiceGroup"><span class="try__badge">REDIS</span>소유권 이전 확인</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XCLAIM Email EmailServiceGroup emailService2 3600000 1659114481311-0"><span class="try__badge">REDIS</span>1시간 idle 요구 (실패)</button>
+            </div>
+
+            <div class="note note--warn">
+              <strong>실제 메시지 ID 사용 / 시간 제약</strong>
+              <code>1659114481311-0</code>은 예시 ID입니다. 직전 <code>XPENDING</code> 결과의 실제 메시지 ID로 바꿔 실행해야 합니다. 또한 실제 환경에서는 <code>min-idle-time</code>을 분 단위 이상으로 주지만, 플레이그라운드에서는 메시지가 방금 전달된 상태라 시연 목적으로 <code>0</code>을 사용합니다.
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>XAUTOCLAIM — 자동 재할당<span class="acc__tag">06.8.3</span></summary>
+          <div class="acc__body">
+            <p>보류 메시지를 일일이 확인하고 재할당하는 작업이 자주 발생하면 번거롭습니다. <code>XAUTOCLAIM</code>은 조건을 만족하는 보류 메시지를 한 번에 가져옵니다.</p>
+
+            <div class="cmd-box"><pre>XAUTOCLAIM &lt;key&gt; &lt;group&gt; &lt;consumer&gt; &lt;min-idle-time&gt; &lt;start&gt; [COUNT count] [JUSTID]</pre></div>
+
+            <h4>반환값</h4>
+            <table>
+              <thead>
+                <tr><th>인덱스</th><th>의미</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>1)</td><td>다음 호출 시 사용할 start ID (남은 보류 메시지가 없으면 <code>0-0</code>)</td></tr>
+                <tr><td>2)</td><td>소유권이 이전된 메시지 목록</td></tr>
+              </tbody>
+            </table>
+
+            <p>반환된 다음 ID로 <code>XAUTOCLAIM</code>을 다시 호출하면 이어서 처리할 수 있습니다. <code>0-0</code>이 반환되면 보류 메시지를 모두 가져왔다는 의미입니다.</p>
+
+            <div class="cmd-box"><pre><span class="c-prompt">&gt;</span> XAUTOCLAIM Email EmailServiceGroup emailService1 0 0
+<span class="c-result">1) "0-0"
+2) 1) 1) "1659114481311-0"
+      2) 1) "subject"
+         2) "first"
+         3) "body"
+         4) "hello?"</span></pre></div>
+
+            <p><code>JUSTID</code> 옵션을 주면 메시지 본문 없이 ID만 반환합니다. 본문이 필요 없는 경우 네트워크 부하를 줄일 수 있습니다.</p>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · XAUTOCLAIM 동작</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="XAUTOCLAIM Email EmailServiceGroup emailService1 0 0"><span class="try__badge">REDIS</span>XAUTOCLAIM 전체</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XAUTOCLAIM Email EmailServiceGroup emailService1 0 0 COUNT 1"><span class="try__badge">REDIS</span>COUNT 1</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XAUTOCLAIM Email EmailServiceGroup emailService1 0 0 JUSTID"><span class="try__badge">REDIS</span>JUSTID 옵션</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>Dead Letter<span class="acc__tag">06.8.4</span></summary>
+          <div class="acc__body">
+            <p>Stream 내 각 메시지는 counter 값을 가집니다. <code>XREADGROUP</code>으로 할당되거나 <code>XCLAIM</code>으로 재할당될 때마다 counter가 1씩 증가합니다.</p>
+
+            <p>특정 메시지가 처리에 계속 실패해 여러 소비자에게 반복 할당되면 counter가 계속 증가합니다. 데이터 자체에 문제가 있어 처리되지 않는 메시지일 가능성이 높습니다.</p>
+
+            <h4>Dead Letter 패턴</h4>
+            <p>counter가 일정 값을 초과한 메시지를 다른 Stream으로 분리해 관리자가 추후 확인하도록 하는 패턴이 일반적입니다. 이렇게 분리된 메시지를 보통 <strong>dead letter</strong>라고 부릅니다.</p>
+
+            <p>Redis가 dead letter 처리를 자체적으로 제공하지는 않습니다. 애플리케이션에서 다음과 같은 흐름으로 직접 구현합니다.</p>
+
+            <ul>
+              <li>주기적으로 <code>XPENDING</code>으로 보류 메시지의 counter 확인</li>
+              <li>임계값을 초과한 메시지를 다른 Stream에 <code>XADD</code></li>
+              <li>원본 Stream에서 <code>XACK</code>로 보류 리스트에서 제거</li>
+              <li>관리자가 별도 Stream을 분석해 문제 원인 파악</li>
+            </ul>
+          </div>
+        </details>
+      </section>
+
+      <section class="ch">
+        <div class="ch__kicker">Chapter 06 · Section 9</div>
+        <h2 class="ch__title">Stream 상태 확인</h2>
+        <p class="ch__desc"><code>XINFO</code> 명령어로 Stream의 상태와 소비자 그룹, 소비자별 정보를 확인합니다. 운영 환경에서 Stream의 동작을 모니터링할 때 사용합니다.</p>
+
+        <details class="acc" open>
+          <summary>XINFO STREAM — Stream 자체 정보<span class="acc__tag">06.9.1</span></summary>
+          <div class="acc__body">
+            <p>Stream의 길이, 마지막 ID, 첫 메시지와 마지막 메시지 등을 확인합니다.</p>
+
+            <div class="cmd-box"><pre>XINFO STREAM &lt;key&gt;</pre></div>
+
+            <h4>주요 필드</h4>
+            <table>
+              <thead>
+                <tr><th>필드</th><th>의미</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>length</code></td><td>Stream에 저장된 메시지 개수</td></tr>
+                <tr><td><code>last-generated-id</code></td><td>마지막으로 생성된 메시지 ID</td></tr>
+                <tr><td><code>first-entry</code></td><td>가장 오래된 메시지 (ID + 필드)</td></tr>
+                <tr><td><code>last-entry</code></td><td>가장 최근 메시지 (ID + 필드)</td></tr>
+              </tbody>
+            </table>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · Stream 정보</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="XINFO STREAM Email"><span class="try__badge">REDIS</span>XINFO STREAM Email</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary>XINFO GROUPS / CONSUMERS — 그룹과 소비자 정보<span class="acc__tag">06.9.2</span></summary>
+          <div class="acc__body">
+            <h4>XINFO GROUPS — 그룹 목록</h4>
+            <p>Stream에 속한 모든 소비자 그룹과 각 그룹의 상태를 확인합니다.</p>
+
+            <div class="cmd-box"><pre>XINFO GROUPS &lt;key&gt;</pre></div>
+
+            <table>
+              <thead>
+                <tr><th>필드</th><th>의미</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>name</code></td><td>그룹 이름</td></tr>
+                <tr><td><code>consumers</code></td><td>그룹에 속한 소비자 수</td></tr>
+                <tr><td><code>pending</code></td><td>그룹 전체의 보류 메시지 수</td></tr>
+                <tr><td><code>last-delivered-id</code></td><td>그룹이 마지막으로 전달한 메시지 ID</td></tr>
+              </tbody>
+            </table>
+
+            <h4>XINFO CONSUMERS — 소비자 목록</h4>
+            <p>특정 그룹에 속한 소비자별 상태를 확인합니다.</p>
+
+            <div class="cmd-box"><pre>XINFO CONSUMERS &lt;key&gt; &lt;group&gt;</pre></div>
+
+            <table>
+              <thead>
+                <tr><th>필드</th><th>의미</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>name</code></td><td>소비자 이름</td></tr>
+                <tr><td><code>pending</code></td><td>해당 소비자의 보류 메시지 수</td></tr>
+              </tbody>
+            </table>
+
+            <div class="try-group">
+              <span class="try-group__label">Try it · 그룹과 소비자 정보</span>
+              <button class="try try--redis" data-engine="redis" data-cmd="XINFO GROUPS Email"><span class="try__badge">REDIS</span>XINFO GROUPS Email</button>
+              <button class="try try--redis" data-engine="redis" data-cmd="XINFO CONSUMERS Email EmailServiceGroup"><span class="try__badge">REDIS</span>XINFO CONSUMERS</button>
+            </div>
+          </div>
+        </details>
+      </section>
+
+    </div>
+  </aside>
+
+  <!-- ━━━ RIGHT PANE — 위/아래 분할 ━━━ -->
+  <aside class="pg">
+
+    <!-- Redis Terminal (위) -->
+    <div class="term-pane">
+      <div class="term__bar term__bar--redis">
+        <div class="term__label">
+          <span class="term__label-badge term__label-badge--redis">REDIS</span>
+          redis-cli
+        </div>
+        <button class="term__btn" id="btnClearRedis" title="출력 지우기">Clear</button>
+        <button class="term__btn" id="btnResetRedis" title="전체 초기화">Reset</button>
+      </div>
+
+      <div class="term__out" id="termOutRedis">
+        <div class="term__welcome">
+          <strong>Redis Mock Engine</strong> · Pub/Sub · List · Stream<br>
+          왼쪽 본문에서 <strong>빨간색 Try-it 버튼</strong>을 누르거나, 아래 입력창에 직접 명령어를 입력하세요.<br>
+          <code>HELP</code>를 입력하면 사용 가능한 명령어 목록을 볼 수 있습니다.
+        </div>
+      </div>
+
+      <div class="term__input-row">
+        <span class="term__prompt">127.0.0.1:6379&gt;</span>
+        <input class="term__input" id="termInRedis" type="text" autocomplete="off" spellcheck="false" placeholder="SUBSCRIBE news.tech · XADD orders * key val · ↑↓ history" />
+      </div>
+    </div>
+
+    <!-- Kafka Terminal (아래) -->
+    <div class="term-pane" id="kafkaPane">
+      <div class="term__bar term__bar--kafka" id="kafkaBar">
+        <div class="term__label">
+          <span class="term__label-badge term__label-badge--kafka">KAFKA</span>
+          <span class="term__mode-indicator" id="kafkaModeIndicator">
+            <span class="term__mode-indicator-dot"></span>
+            <span id="kafkaModeIndicatorText">PRODUCER</span>
+          </span>
+          <span id="kafkaLabelMode">kafka-cli</span>
+        </div>
+        <button class="term__btn term__btn--exit" id="kafkaModeExit" title="모드 종료 (Ctrl+C)">Exit</button>
+        <button class="term__btn" id="btnClearKafka" title="출력 지우기">Clear</button>
+        <button class="term__btn" id="btnResetKafka" title="전체 초기화">Reset</button>
+      </div>
+
+      <div class="term__out" id="termOutKafka">
+        <div class="term__welcome">
+          <strong>Kafka Mock Engine</strong> · Topics · Partitions · Consumer Groups<br>
+          왼쪽 본문에서 <strong>검정색 Try-it 버튼</strong>을 누르거나, 아래 입력창에 직접 명령어를 입력하세요.<br>
+          <code>help</code>를 입력하면 사용 가능한 명령어 목록을 볼 수 있습니다.
+        </div>
+      </div>
+
+      <div class="term__input-row">
+        <span class="term__prompt" id="kafkaPrompt">$</span>
+        <input class="term__input" id="termInKafka" type="text" autocomplete="off" spellcheck="false" placeholder="kafka-topics --create --topic events --partitions 3" />
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<script>
+/* ==============================================================
+   MOCK REDIS ENGINE (Chapter 6 — full set)
+   기존 redis-3주차 페이지의 엔진을 그대로 사용
+============================================================== */
+const RedisEngine = (() => {
+  const state = {
+    data: new Map(),
+    types: new Map(),
+    expires: new Map(),
+    subscriptions: new Set(),
+    psubscriptions: new Set(),
+    streamGroups: new Map(),
+  };
+
+  class RedisErr extends Error {}
+
+  const sweep = (key) => {
+    const exp = state.expires.get(key);
+    if (exp !== undefined && Date.now() >= exp) {
+      state.data.delete(key); state.types.delete(key); state.expires.delete(key);
+      return true;
+    }
+    return false;
+  };
+  const exists = (key) => { sweep(key); return state.data.has(key); };
+  const del = (key) => {
+    const had = state.data.has(key);
+    state.data.delete(key); state.types.delete(key); state.expires.delete(key);
+    state.streamGroups.delete(key);
+    return had ? 1 : 0;
+  };
+  const typeOf = (key) => { sweep(key); return state.types.get(key) || 'none'; };
+  const requireType = (key, t) => {
+    const cur = typeOf(key);
+    if (cur === 'none') return null;
+    if (cur !== t) throw new RedisErr(`WRONGTYPE Operation against a key holding the wrong kind of value`);
+    return cur;
+  };
+  const ensure = (key, type, factory) => {
+    sweep(key);
+    if (!state.data.has(key)) {
+      state.data.set(key, factory());
+      state.types.set(key, type);
+    } else if (state.types.get(key) !== type) {
+      throw new RedisErr('WRONGTYPE Operation against a key holding the wrong kind of value');
+    }
+    return state.data.get(key);
+  };
+  const toInt = (v) => {
+    if (typeof v === 'number') return v;
+    const n = Number(v);
+    if (!Number.isFinite(n) || Math.floor(n) !== n) throw new RedisErr('value is not an integer or out of range');
+    return n;
+  };
+  const globToRegex = (pattern) => {
+    let re = '^';
+    for (let i = 0; i < pattern.length; i++) {
+      const c = pattern[i];
+      if (c === '*') re += '.*';
+      else if (c === '?') re += '.';
+      else if (c === '[') {
+        let close = pattern.indexOf(']', i);
+        if (close === -1) { re += '\\['; continue; }
+        let group = pattern.slice(i + 1, close);
+        if (group.startsWith('^')) group = '^' + group.slice(1);
+        re += '[' + group + ']';
+        i = close;
+      }
+      else re += c.replace(/[.+^${}()|\\]/g, '\\$&');
+    }
+    re += '$';
+    return new RegExp(re);
+  };
+
+  let pushCallback = null;
+  const setPushCallback = (fn) => { pushCallback = fn; };
+
+  const cmd = {};
+
+  // STRING
+  cmd.SET = (args) => {
+    if (args.length < 2) throw new RedisErr(`wrong number of arguments for 'set'`);
+    const [key, value] = args;
+    state.data.set(key, String(value));
+    state.types.set(key, 'string');
+    state.expires.delete(key);
+    return { type: 'ok' };
+  };
+  cmd.GET = (args) => {
+    const [key] = args;
+    requireType(key, 'string');
+    if (!exists(key)) return { type: 'nil' };
+    return { type: 'str', value: state.data.get(key) };
+  };
+
+  // LIST
+  cmd.LPUSH = (args) => {
+    const [key, ...vs] = args;
+    if (!vs.length) throw new RedisErr(`wrong number of arguments for 'lpush'`);
+    const list = ensure(key, 'list', () => []);
+    for (const v of vs) list.unshift(String(v));
+    return { type: 'int', value: list.length };
+  };
+  cmd.RPUSH = (args) => {
+    const [key, ...vs] = args;
+    if (!vs.length) throw new RedisErr(`wrong number of arguments for 'rpush'`);
+    const list = ensure(key, 'list', () => []);
+    for (const v of vs) list.push(String(v));
+    return { type: 'int', value: list.length };
+  };
+  cmd.LPOP = (args) => {
+    const [key, count] = args;
+    if (!exists(key)) return { type: 'nil' };
+    requireType(key, 'list');
+    const list = state.data.get(key);
+    if (count === undefined) {
+      if (!list.length) return { type: 'nil' };
+      const v = list.shift();
+      if (!list.length) del(key);
+      return { type: 'str', value: v };
+    }
+    const n = toInt(count);
+    const out = list.splice(0, n);
+    if (!list.length) del(key);
+    return { type: 'arr', value: out.map(v => ({ type: 'str', value: v })) };
+  };
+  cmd.RPOP = (args) => {
+    const [key, count] = args;
+    if (!exists(key)) return { type: 'nil' };
+    requireType(key, 'list');
+    const list = state.data.get(key);
+    if (count === undefined) {
+      if (!list.length) return { type: 'nil' };
+      const v = list.pop();
+      if (!list.length) del(key);
+      return { type: 'str', value: v };
+    }
+    const n = toInt(count);
+    const out = [];
+    for (let i = 0; i < n && list.length; i++) out.push(list.pop());
+    if (!list.length) del(key);
+    return { type: 'arr', value: out.map(v => ({ type: 'str', value: v })) };
+  };
+  cmd.LRANGE = (args) => {
+    const [key, startS, stopS] = args;
+    if (!exists(key)) return { type: 'arr', value: [] };
+    requireType(key, 'list');
+    const list = state.data.get(key);
+    let start = toInt(startS), stop = toInt(stopS);
+    if (start < 0) start = Math.max(list.length + start, 0);
+    if (stop < 0) stop = list.length + stop;
+    stop = Math.min(stop, list.length - 1);
+    if (start > stop) return { type: 'arr', value: [] };
+    return { type: 'arr', value: list.slice(start, stop + 1).map(v => ({ type: 'str', value: v })) };
+  };
+  cmd.LLEN = (args) => {
+    const [key] = args;
+    if (!exists(key)) return { type: 'int', value: 0 };
+    requireType(key, 'list');
+    return { type: 'int', value: state.data.get(key).length };
+  };
+  cmd.LMOVE = (args) => {
+    if (args.length !== 4) throw new RedisErr(`wrong number of arguments for 'lmove'`);
+    const [src, dst, wherefrom, whereto] = args;
+    const f = wherefrom.toUpperCase(), t = whereto.toUpperCase();
+    if (!['LEFT', 'RIGHT'].includes(f) || !['LEFT', 'RIGHT'].includes(t)) {
+      throw new RedisErr('syntax error');
+    }
+    if (!exists(src)) return { type: 'nil' };
+    requireType(src, 'list');
+    const srcList = state.data.get(src);
+    if (!srcList.length) return { type: 'nil' };
+    const v = (f === 'LEFT') ? srcList.shift() : srcList.pop();
+    if (!srcList.length) del(src);
+    const dstList = ensure(dst, 'list', () => []);
+    if (t === 'LEFT') dstList.unshift(v);
+    else dstList.push(v);
+    return { type: 'str', value: v };
+  };
+  cmd.BLPOP = (args) => {
+    const timeout = args[args.length - 1];
+    const keys = args.slice(0, -1);
+    for (const key of keys) {
+      if (exists(key) && typeOf(key) === 'list' && state.data.get(key).length) {
+        const list = state.data.get(key);
+        const v = list.shift();
+        if (!list.length) del(key);
+        return { type: 'arr', value: [{ type: 'str', value: key }, { type: 'str', value: v }] };
+      }
+    }
+    return { type: 'nil', note: `(playground) all queues empty — BLPOP would block up to ${timeout}s.` };
+  };
+  cmd.BRPOP = (args) => {
+    const timeout = args[args.length - 1];
+    const keys = args.slice(0, -1);
+    for (const key of keys) {
+      if (exists(key) && typeOf(key) === 'list' && state.data.get(key).length) {
+        const list = state.data.get(key);
+        const v = list.pop();
+        if (!list.length) del(key);
+        return { type: 'arr', value: [{ type: 'str', value: key }, { type: 'str', value: v }] };
+      }
+    }
+    return { type: 'nil', note: `(playground) all queues empty — BRPOP would block up to ${timeout}s.` };
+  };
+  cmd.RPUSHX = (args) => {
+    const [key, ...vs] = args;
+    if (!exists(key)) return { type: 'int', value: 0 };
+    requireType(key, 'list');
+    const list = state.data.get(key);
+    for (const v of vs) list.push(String(v));
+    return { type: 'int', value: list.length };
+  };
+  cmd.LPUSHX = (args) => {
+    const [key, ...vs] = args;
+    if (!exists(key)) return { type: 'int', value: 0 };
+    requireType(key, 'list');
+    const list = state.data.get(key);
+    for (const v of vs) list.unshift(String(v));
+    return { type: 'int', value: list.length };
+  };
+  cmd.LTRIM = (args) => {
+    const [key, startS, stopS] = args;
+    if (!exists(key)) return { type: 'ok' };
+    requireType(key, 'list');
+    const list = state.data.get(key);
+    let start = toInt(startS), stop = toInt(stopS);
+    if (start < 0) start = Math.max(list.length + start, 0);
+    if (stop < 0) stop = list.length + stop;
+    state.data.set(key, list.slice(start, stop + 1));
+    if (!state.data.get(key).length) del(key);
+    return { type: 'ok' };
+  };
+  cmd.LREM = (args) => {
+    const [key, countS, value] = args;
+    if (!exists(key)) return { type: 'int', value: 0 };
+    requireType(key, 'list');
+    const list = state.data.get(key);
+    const count = toInt(countS);
+    let removed = 0;
+    if (count === 0) {
+      const before = list.length;
+      const filtered = list.filter(v => v !== String(value));
+      removed = before - filtered.length;
+      state.data.set(key, filtered);
+    } else if (count > 0) {
+      let n = count;
+      for (let i = 0; i < list.length && n > 0; ) {
+        if (list[i] === String(value)) { list.splice(i, 1); n--; removed++; }
+        else i++;
+      }
+    } else {
+      let n = -count;
+      for (let i = list.length - 1; i >= 0 && n > 0; i--) {
+        if (list[i] === String(value)) { list.splice(i, 1); n--; removed++; }
+      }
+    }
+    if (!state.data.get(key).length) del(key);
+    return { type: 'int', value: removed };
+  };
+  cmd.RPOPLPUSH = (args) => {
+    const [src, dst] = args;
+    if (!exists(src)) return { type: 'nil' };
+    requireType(src, 'list');
+    const srcList = state.data.get(src);
+    if (!srcList.length) return { type: 'nil' };
+    const v = srcList.pop();
+    if (!srcList.length) del(src);
+    const dstList = ensure(dst, 'list', () => []);
+    dstList.unshift(v);
+    return { type: 'str', value: v };
+  };
+
+  // PUB/SUB
+  cmd.SUBSCRIBE = (args) => {
+    if (!args.length) throw new RedisErr(`wrong number of arguments for 'subscribe'`);
+    const replies = [];
+    for (const ch of args) {
+      state.subscriptions.add(ch);
+      const total = state.subscriptions.size + state.psubscriptions.size;
+      replies.push({ type: 'arr', value: [
+        { type: 'str', value: 'subscribe' },
+        { type: 'str', value: ch },
+        { type: 'int', value: total }
+      ]});
+    }
+    return { type: 'multi', value: replies };
+  };
+  cmd.UNSUBSCRIBE = (args) => {
+    const chs = args.length ? args : [...state.subscriptions];
+    const replies = [];
+    for (const ch of chs) {
+      state.subscriptions.delete(ch);
+      const total = state.subscriptions.size + state.psubscriptions.size;
+      replies.push({ type: 'arr', value: [
+        { type: 'str', value: 'unsubscribe' },
+        { type: 'str', value: ch },
+        { type: 'int', value: total }
+      ]});
+    }
+    if (!replies.length) return { type: 'ok' };
+    return { type: 'multi', value: replies };
+  };
+  cmd.PSUBSCRIBE = (args) => {
+    if (!args.length) throw new RedisErr(`wrong number of arguments for 'psubscribe'`);
+    const replies = [];
+    for (const p of args) {
+      state.psubscriptions.add(p);
+      const total = state.subscriptions.size + state.psubscriptions.size;
+      replies.push({ type: 'arr', value: [
+        { type: 'str', value: 'psubscribe' },
+        { type: 'str', value: p },
+        { type: 'int', value: total }
+      ]});
+    }
+    return { type: 'multi', value: replies };
+  };
+  cmd.PUNSUBSCRIBE = (args) => {
+    const ps = args.length ? args : [...state.psubscriptions];
+    const replies = [];
+    for (const p of ps) {
+      state.psubscriptions.delete(p);
+      const total = state.subscriptions.size + state.psubscriptions.size;
+      replies.push({ type: 'arr', value: [
+        { type: 'str', value: 'punsubscribe' },
+        { type: 'str', value: p },
+        { type: 'int', value: total }
+      ]});
+    }
+    if (!replies.length) return { type: 'ok' };
+    return { type: 'multi', value: replies };
+  };
+  cmd.PUBLISH = (args) => {
+    const [channel, message] = args;
+    if (channel === undefined || message === undefined) throw new RedisErr(`wrong number of arguments for 'publish'`);
+    let received = 0;
+    if (state.subscriptions.has(channel)) {
+      received++;
+      if (pushCallback) pushCallback({ kind: 'message', channel, message });
+    }
+    for (const p of state.psubscriptions) {
+      if (globToRegex(p).test(channel)) {
+        received++;
+        if (pushCallback) pushCallback({ kind: 'pmessage', pattern: p, channel, message });
+      }
+    }
+    return { type: 'int', value: received };
+  };
+  cmd.PUBSUB = (args) => {
+    const sub = (args[0] || '').toUpperCase();
+    if (sub === 'CHANNELS') {
+      const pat = args[1] || '*';
+      const re = globToRegex(pat);
+      const out = [];
+      for (const c of state.subscriptions) if (re.test(c)) out.push({ type: 'str', value: c });
+      return { type: 'arr', value: out };
+    }
+    if (sub === 'NUMSUB') {
+      const out = [];
+      for (const c of args.slice(1)) {
+        out.push({ type: 'str', value: c });
+        out.push({ type: 'int', value: state.subscriptions.has(c) ? 1 : 0 });
+      }
+      return { type: 'arr', value: out };
+    }
+    if (sub === 'NUMPAT') return { type: 'int', value: state.psubscriptions.size };
+    throw new RedisErr(`unknown PUBSUB subcommand: ${args[0]}`);
+  };
+
+  // STREAM
+  const compareStreamId = (a, b) => {
+    const [ma, sa] = a.split('-').map(Number);
+    const [mb, sb] = b.split('-').map(Number);
+    if (ma !== mb) return ma - mb;
+    return sa - sb;
+  };
+  const parseRangeId = (raw, side) => {
+    if (raw === '-') return '0-0';
+    if (raw === '+') return '999999999999999-999999999999999';
+    if (!raw.includes('-')) {
+      return side === 'min' ? `${raw}-0` : `${raw}-999999999999999`;
+    }
+    return raw;
+  };
+  const generateStreamId = (stream) => {
+    let ms = Date.now();
+    if (stream.lastId) {
+      const [lms, lseq] = stream.lastId.split('-').map(Number);
+      if (lms >= ms) {
+        ms = lms;
+        return `${ms}-${lseq + 1}`;
+      }
+    }
+    return `${ms}-0`;
+  };
+
+  cmd.XADD = (args) => {
+    const [key, idArg, ...rest] = args;
+    if (rest.length === 0 || rest.length % 2 !== 0) {
+      throw new RedisErr(`wrong number of arguments for 'xadd'`);
+    }
+    const stream = ensure(key, 'stream', () => ({ entries: [], lastId: null }));
+    let id;
+    if (idArg === '*') {
+      id = generateStreamId(stream);
+    } else {
+      if (!idArg.includes('-')) id = `${idArg}-0`;
+      else id = idArg;
+      if (stream.lastId && compareStreamId(id, stream.lastId) <= 0) {
+        throw new RedisErr('The ID specified in XADD is equal or smaller than the target stream top item');
+      }
+    }
+    stream.entries.push({ id, fields: rest });
+    stream.lastId = id;
+    return { type: 'str', value: id };
+  };
+  cmd.XLEN = (args) => {
+    const [key] = args;
+    if (!exists(key)) return { type: 'int', value: 0 };
+    requireType(key, 'stream');
+    return { type: 'int', value: state.data.get(key).entries.length };
+  };
+  cmd.XRANGE = (args) => {
+    const [key, startRaw, endRaw, ...opts] = args;
+    if (!exists(key)) return { type: 'arr', value: [] };
+    requireType(key, 'stream');
+    let count = Infinity;
+    for (let i = 0; i < opts.length; i++) {
+      if (opts[i].toUpperCase() === 'COUNT') count = toInt(opts[++i]);
+    }
+    const start = parseRangeId(startRaw, 'min');
+    const end = parseRangeId(endRaw, 'max');
+    const stream = state.data.get(key);
+    const out = [];
+    for (const e of stream.entries) {
+      if (compareStreamId(e.id, start) >= 0 && compareStreamId(e.id, end) <= 0) {
+        out.push({ type: 'arr', value: [
+          { type: 'str', value: e.id },
+          { type: 'arr', value: e.fields.map(f => ({ type: 'str', value: f })) }
+        ]});
+        if (out.length >= count) break;
+      }
+    }
+    return { type: 'arr', value: out };
+  };
+  cmd.XREAD = (args) => {
+    let count = Infinity;
+    let i = 0;
+    while (i < args.length) {
+      const o = args[i].toUpperCase();
+      if (o === 'COUNT') { count = toInt(args[++i]); i++; }
+      else if (o === 'BLOCK') { i += 2; }
+      else if (o === 'STREAMS') { i++; break; }
+      else throw new RedisErr('syntax error');
+    }
+    const rest = args.slice(i);
+    if (rest.length % 2 !== 0) throw new RedisErr('Unbalanced XREAD list of streams');
+    const half = rest.length / 2;
+    const streamKeys = rest.slice(0, half);
+    const ids = rest.slice(half);
+    const result = [];
+    for (let j = 0; j < streamKeys.length; j++) {
+      const key = streamKeys[j];
+      let id = ids[j];
+      if (!exists(key)) continue;
+      requireType(key, 'stream');
+      const stream = state.data.get(key);
+      if (id === '$') id = stream.lastId || '0-0';
+      if (!id.includes('-')) id = `${id}-0`;
+      const entries = [];
+      for (const e of stream.entries) {
+        if (compareStreamId(e.id, id) > 0) {
+          entries.push({ type: 'arr', value: [
+            { type: 'str', value: e.id },
+            { type: 'arr', value: e.fields.map(f => ({ type: 'str', value: f })) }
+          ]});
+          if (entries.length >= count) break;
+        }
+      }
+      if (entries.length) {
+        result.push({ type: 'arr', value: [
+          { type: 'str', value: key },
+          { type: 'arr', value: entries }
+        ]});
+      }
+    }
+    if (!result.length) return { type: 'nil' };
+    return { type: 'arr', value: result };
+  };
+  cmd.XGROUP = (args) => {
+    const sub = (args[0] || '').toUpperCase();
+    if (sub === 'CREATE') {
+      const [, key, group, idArg, ...opts] = args;
+      const mkstream = opts.map(s => s.toUpperCase()).includes('MKSTREAM');
+      if (!exists(key)) {
+        if (!mkstream) throw new RedisErr(`ERR The XGROUP subcommand requires the key to exist.`);
+        ensure(key, 'stream', () => ({ entries: [], lastId: null }));
+      }
+      requireType(key, 'stream');
+      if (!state.streamGroups.has(key)) state.streamGroups.set(key, new Map());
+      const groups = state.streamGroups.get(key);
+      if (groups.has(group)) throw new RedisErr(`BUSYGROUP Consumer Group name already exists`);
+      const stream = state.data.get(key);
+      const lastDelivered = idArg === '$' ? (stream.lastId || '0-0') : (idArg.includes('-') ? idArg : `${idArg}-0`);
+      groups.set(group, { lastDelivered, consumers: new Map() });
+      return { type: 'ok' };
+    }
+    if (sub === 'DESTROY') {
+      const [, key, group] = args;
+      if (!state.streamGroups.has(key)) return { type: 'int', value: 0 };
+      const had = state.streamGroups.get(key).delete(group) ? 1 : 0;
+      return { type: 'int', value: had };
+    }
+    throw new RedisErr(`unknown XGROUP subcommand: ${args[0]}`);
+  };
+  cmd.XREADGROUP = (args) => {
+    if (args[0].toUpperCase() !== 'GROUP') throw new RedisErr('syntax error');
+    const group = args[1];
+    const consumer = args[2];
+    let i = 3, count = Infinity;
+    while (i < args.length) {
+      const o = args[i].toUpperCase();
+      if (o === 'COUNT') { count = toInt(args[++i]); i++; }
+      else if (o === 'BLOCK') { i += 2; }
+      else if (o === 'NOACK') { i++; }
+      else if (o === 'STREAMS') { i++; break; }
+      else throw new RedisErr('syntax error');
+    }
+    const rest = args.slice(i);
+    if (rest.length % 2 !== 0) throw new RedisErr('Unbalanced XREADGROUP');
+    const half = rest.length / 2;
+    const streamKeys = rest.slice(0, half);
+    const ids = rest.slice(half);
+    const result = [];
+    for (let j = 0; j < streamKeys.length; j++) {
+      const key = streamKeys[j];
+      const id = ids[j];
+      if (!exists(key)) throw new RedisErr(`NOGROUP No such key '${key}' or consumer group '${group}'`);
+      const groups = state.streamGroups.get(key);
+      if (!groups || !groups.has(group)) throw new RedisErr(`NOGROUP No such key '${key}' or consumer group '${group}'`);
+      const g = groups.get(group);
+      if (!g.consumers.has(consumer)) g.consumers.set(consumer, { pending: new Map() });
+      const c = g.consumers.get(consumer);
+      const stream = state.data.get(key);
+      const entries = [];
+      if (id === '>') {
+        for (const e of stream.entries) {
+          if (compareStreamId(e.id, g.lastDelivered) > 0) {
+            entries.push({ type: 'arr', value: [
+              { type: 'str', value: e.id },
+              { type: 'arr', value: e.fields.map(f => ({ type: 'str', value: f })) }
+            ]});
+            c.pending.set(e.id, { deliveredAt: Date.now(), deliveryCount: 1 });
+            g.lastDelivered = e.id;
+            if (entries.length >= count) break;
+          }
+        }
+      } else {
+        const startId = id.includes('-') ? id : `${id}-0`;
+        const pendingIds = [...c.pending.keys()].sort(compareStreamId);
+        for (const pid of pendingIds) {
+          if (compareStreamId(pid, startId) >= 0) {
+            const entry = stream.entries.find(e => e.id === pid);
+            if (entry) {
+              entries.push({ type: 'arr', value: [
+                { type: 'str', value: entry.id },
+                { type: 'arr', value: entry.fields.map(f => ({ type: 'str', value: f })) }
+              ]});
+              if (entries.length >= count) break;
+            }
+          }
+        }
+      }
+      if (entries.length) {
+        result.push({ type: 'arr', value: [
+          { type: 'str', value: key },
+          { type: 'arr', value: entries }
+        ]});
+      }
+    }
+    if (!result.length) return { type: 'nil' };
+    return { type: 'arr', value: result };
+  };
+  cmd.XACK = (args) => {
+    const [key, group, ...ids] = args;
+    if (!exists(key) || !state.streamGroups.has(key)) return { type: 'int', value: 0 };
+    const groups = state.streamGroups.get(key);
+    if (!groups.has(group)) return { type: 'int', value: 0 };
+    const g = groups.get(group);
+    let acked = 0;
+    for (const id of ids) {
+      const fullId = id.includes('-') ? id : `${id}-0`;
+      for (const [, c] of g.consumers) {
+        if (c.pending.has(fullId)) { c.pending.delete(fullId); acked++; }
+      }
+    }
+    return { type: 'int', value: acked };
+  };
+  cmd.XPENDING = (args) => {
+    const [key, group] = args;
+    if (!exists(key) || !state.streamGroups.has(key)) return { type: 'arr', value: [] };
+    const groups = state.streamGroups.get(key);
+    if (!groups.has(group)) return { type: 'arr', value: [] };
+    const g = groups.get(group);
+    let total = 0;
+    let minId = null, maxId = null;
+    const perConsumer = new Map();
+    for (const [name, c] of g.consumers) {
+      for (const id of c.pending.keys()) {
+        total++;
+        if (!minId || compareStreamId(id, minId) < 0) minId = id;
+        if (!maxId || compareStreamId(id, maxId) > 0) maxId = id;
+        perConsumer.set(name, (perConsumer.get(name) || 0) + 1);
+      }
+    }
+    if (total === 0) {
+      return { type: 'arr', value: [
+        { type: 'int', value: 0 },
+        { type: 'nil' },
+        { type: 'nil' },
+        { type: 'nil' }
+      ]};
+    }
+    const cArr = [];
+    for (const [name, n] of perConsumer) {
+      cArr.push({ type: 'arr', value: [
+        { type: 'str', value: name },
+        { type: 'str', value: String(n) }
+      ]});
+    }
+    return { type: 'arr', value: [
+      { type: 'int', value: total },
+      { type: 'str', value: minId },
+      { type: 'str', value: maxId },
+      { type: 'arr', value: cArr }
+    ]};
+  };
+  cmd.XCLAIM = (args) => {
+    const [key, group, consumer, minIdleS, ...ids] = args;
+    if (!exists(key) || !state.streamGroups.has(key)) return { type: 'arr', value: [] };
+    const groups = state.streamGroups.get(key);
+    if (!groups.has(group)) return { type: 'arr', value: [] };
+    const g = groups.get(group);
+    const minIdle = toInt(minIdleS);
+    const now = Date.now();
+    if (!g.consumers.has(consumer)) g.consumers.set(consumer, { pending: new Map() });
+    const target = g.consumers.get(consumer);
+    const stream = state.data.get(key);
+    const out = [];
+    for (const id of ids) {
+      const fullId = id.includes('-') ? id : `${id}-0`;
+      let found = null;
+      for (const [name, c] of g.consumers) {
+        if (c.pending.has(fullId)) {
+          const p = c.pending.get(fullId);
+          if (now - p.deliveredAt >= minIdle) {
+            c.pending.delete(fullId);
+            target.pending.set(fullId, { deliveredAt: now, deliveryCount: p.deliveryCount + 1 });
+            const entry = stream.entries.find(e => e.id === fullId);
+            if (entry) {
+              out.push({ type: 'arr', value: [
+                { type: 'str', value: entry.id },
+                { type: 'arr', value: entry.fields.map(f => ({ type: 'str', value: f })) }
+              ]});
+            }
+            found = name;
+          }
+          break;
+        }
+      }
+    }
+    return { type: 'arr', value: out };
+  };
+  cmd.XAUTOCLAIM = (args) => {
+    const [key, group, consumer, minIdleS, startRaw, ...opts] = args;
+    if (!exists(key) || !state.streamGroups.has(key)) {
+      return { type: 'arr', value: [
+        { type: 'str', value: '0-0' },
+        { type: 'arr', value: [] },
+        { type: 'arr', value: [] }
+      ]};
+    }
+    const groups = state.streamGroups.get(key);
+    if (!groups.has(group)) {
+      return { type: 'arr', value: [
+        { type: 'str', value: '0-0' },
+        { type: 'arr', value: [] },
+        { type: 'arr', value: [] }
+      ]};
+    }
+    let count = 100, justId = false;
+    for (let i = 0; i < opts.length; i++) {
+      const o = opts[i].toUpperCase();
+      if (o === 'COUNT') count = toInt(opts[++i]);
+      else if (o === 'JUSTID') justId = true;
+    }
+    const g = groups.get(group);
+    const minIdle = toInt(minIdleS);
+    const now = Date.now();
+    const start = parseRangeId(startRaw, 'min');
+    if (!g.consumers.has(consumer)) g.consumers.set(consumer, { pending: new Map() });
+    const target = g.consumers.get(consumer);
+    const stream = state.data.get(key);
+
+    const candidates = [];
+    for (const [name, c] of g.consumers) {
+      if (name === consumer) continue;
+      for (const [id, p] of c.pending) {
+        if (compareStreamId(id, start) >= 0 && now - p.deliveredAt >= minIdle) {
+          candidates.push({ id, fromPending: c.pending, p });
+        }
+      }
+    }
+    candidates.sort((a, b) => compareStreamId(a.id, b.id));
+
+    const claimed = [];
+    let nextId = '0-0';
+    for (let i = 0; i < candidates.length && i < count; i++) {
+      const { id, fromPending, p } = candidates[i];
+      fromPending.delete(id);
+      target.pending.set(id, { deliveredAt: now, deliveryCount: p.deliveryCount + 1 });
+      if (justId) {
+        claimed.push({ type: 'str', value: id });
+      } else {
+        const entry = stream.entries.find(e => e.id === id);
+        if (entry) {
+          claimed.push({ type: 'arr', value: [
+            { type: 'str', value: entry.id },
+            { type: 'arr', value: entry.fields.map(f => ({ type: 'str', value: f })) }
+          ]});
+        }
+      }
+    }
+    if (candidates.length > count) {
+      nextId = candidates[count].id;
+    }
+    return { type: 'arr', value: [
+      { type: 'str', value: nextId },
+      { type: 'arr', value: claimed },
+      { type: 'arr', value: [] }
+    ]};
+  };
+  cmd.XINFO = (args) => {
+    const sub = (args[0] || '').toUpperCase();
+    if (sub === 'STREAM') {
+      const [, key] = args;
+      if (!exists(key)) return { type: 'err', value: `ERR no such key` };
+      const s = state.data.get(key);
+      return { type: 'arr', value: [
+        { type: 'str', value: 'length' },
+        { type: 'int', value: s.entries.length },
+        { type: 'str', value: 'last-generated-id' },
+        { type: 'str', value: s.lastId || '0-0' },
+        { type: 'str', value: 'first-entry' },
+        s.entries.length ? { type: 'arr', value: [
+          { type: 'str', value: s.entries[0].id },
+          { type: 'arr', value: s.entries[0].fields.map(f => ({ type: 'str', value: f })) }
+        ]} : { type: 'nil' },
+        { type: 'str', value: 'last-entry' },
+        s.entries.length ? { type: 'arr', value: [
+          { type: 'str', value: s.entries[s.entries.length - 1].id },
+          { type: 'arr', value: s.entries[s.entries.length - 1].fields.map(f => ({ type: 'str', value: f })) }
+        ]} : { type: 'nil' }
+      ]};
+    }
+    if (sub === 'GROUPS') {
+      const [, key] = args;
+      if (!state.streamGroups.has(key)) return { type: 'arr', value: [] };
+      const out = [];
+      for (const [name, g] of state.streamGroups.get(key)) {
+        let pending = 0;
+        for (const [, c] of g.consumers) pending += c.pending.size;
+        out.push({ type: 'arr', value: [
+          { type: 'str', value: 'name' },
+          { type: 'str', value: name },
+          { type: 'str', value: 'consumers' },
+          { type: 'int', value: g.consumers.size },
+          { type: 'str', value: 'pending' },
+          { type: 'int', value: pending },
+          { type: 'str', value: 'last-delivered-id' },
+          { type: 'str', value: g.lastDelivered }
+        ]});
+      }
+      return { type: 'arr', value: out };
+    }
+    if (sub === 'CONSUMERS') {
+      const [, key, group] = args;
+      if (!state.streamGroups.has(key)) return { type: 'arr', value: [] };
+      const g = state.streamGroups.get(key).get(group);
+      if (!g) return { type: 'arr', value: [] };
+      const out = [];
+      for (const [name, c] of g.consumers) {
+        out.push({ type: 'arr', value: [
+          { type: 'str', value: 'name' },
+          { type: 'str', value: name },
+          { type: 'str', value: 'pending' },
+          { type: 'int', value: c.pending.size }
+        ]});
+      }
+      return { type: 'arr', value: out };
+    }
+    throw new RedisErr(`unknown XINFO subcommand: ${args[0]}`);
+  };
+
+  // MISC
+  cmd.DEL = (args) => {
+    let count = 0;
+    for (const k of args) if (del(k)) count++;
+    return { type: 'int', value: count };
+  };
+  cmd.EXISTS = (args) => {
+    let count = 0;
+    for (const k of args) if (exists(k)) count++;
+    return { type: 'int', value: count };
+  };
+  cmd.TYPE = (args) => ({ type: 'raw', value: typeOf(args[0]) });
+  cmd.KEYS = (args) => {
+    const [pattern = '*'] = args;
+    const re = globToRegex(pattern);
+    const out = [];
+    for (const k of state.data.keys()) sweep(k);
+    for (const k of state.data.keys()) if (re.test(k)) out.push({ type: 'str', value: k });
+    return { type: 'arr', value: out };
+  };
+  cmd.FLUSHALL = () => {
+    state.data.clear(); state.types.clear(); state.expires.clear();
+    state.subscriptions.clear(); state.psubscriptions.clear(); state.streamGroups.clear();
+    return { type: 'ok' };
+  };
+  cmd.PING = (args) => args.length ? { type: 'str', value: args[0] } : { type: 'raw', value: 'PONG' };
+  cmd.HELP = () => ({ type: 'raw', value:
+`Available commands (Chapter 6):
+  Pub/Sub:   SUBSCRIBE, UNSUBSCRIBE, PSUBSCRIBE, PUNSUBSCRIBE, PUBLISH, PUBSUB
+  List:      LPUSH, RPUSH, LPOP, RPOP, LRANGE, LLEN, LTRIM, LREM, LMOVE,
+             RPUSHX, LPUSHX, RPOPLPUSH, BLPOP, BRPOP
+  Stream:    XADD, XLEN, XRANGE, XREAD, XGROUP, XREADGROUP, XACK, XPENDING,
+             XCLAIM, XINFO
+  Misc:      SET, GET, DEL, EXISTS, TYPE, KEYS, PING, FLUSHALL`
+  });
+
+  // tokenizer & exec
+  const tokenize = (line) => {
+    const tokens = [];
+    let cur = '';
+    let q = null;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) {
+        if (c === '\\' && i + 1 < line.length) { cur += line[++i]; continue; }
+        if (c === q) { tokens.push(cur); cur = ''; q = null; continue; }
+        cur += c;
+      } else {
+        if (c === '"' || c === "'") { q = c; continue; }
+        if (c === ' ' || c === '\t') { if (cur) { tokens.push(cur); cur = ''; } continue; }
+        cur += c;
+      }
+    }
+    if (cur) tokens.push(cur);
+    return tokens;
+  };
+  const exec = (line) => {
+    const tokens = tokenize(line.trim());
+    if (!tokens.length) return null;
+    const name = tokens[0].toUpperCase();
+    const handler = cmd[name];
+    if (!handler) return { type: 'err', value: `ERR unknown command '${tokens[0]}'` };
+    try {
+      return handler(tokens.slice(1));
+    } catch (e) {
+      if (e instanceof RedisErr) return { type: 'err', value: e.message };
+      return { type: 'err', value: `${e.message || 'internal error'}` };
+    }
+  };
+
+  return { exec, setPushCallback, flush: () => cmd.FLUSHALL() };
+})();
+
+
+/* ==============================================================
+   MOCK KAFKA ENGINE (Chapter 6)
+   실제 kafka CLI를 흉내냅니다:
+     - kafka-topics, kafka-console-producer, kafka-console-consumer,
+       kafka-consumer-groups
+     - 파티션, 오프셋, 컨슈머 그룹 모두 지원
+     - Producer/Consumer 모드 (멀티라인 입력, Ctrl+C 종료)
+============================================================== */
+const KafkaEngine = (() => {
+  const state = {
+    topics: new Map(),     // topicName -> { partitions: [[entry,...], ...] }
+                           //   entry: { offset, key, value, timestamp }
+    groups: new Map(),     // groupName -> { topics: Map<topicName, { offsets: Map<partition, offset> }> }
+    consumers: [],         // 활성 consumer 인스턴스 목록 (push 콜백용)
+    // pseudo-cluster: 라운드로빈 producer를 위한 카운터
+    rrCounters: new Map(), // topicName -> next partition
+  };
+
+  class KafkaErr extends Error {}
+
+  // ── helpers ──
+  const hashKey = (key) => {
+    // 단순 hash (java murmur가 아니라 학습용)
+    let h = 0;
+    for (let i = 0; i < key.length; i++) {
+      h = ((h << 5) - h + key.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h);
+  };
+
+  const pickPartition = (topicName, key) => {
+    const t = state.topics.get(topicName);
+    const n = t.partitions.length;
+    if (key !== null && key !== undefined && key !== '') {
+      return hashKey(String(key)) % n;
+    }
+    // 라운드로빈
+    const cur = state.rrCounters.get(topicName) || 0;
+    state.rrCounters.set(topicName, (cur + 1) % n);
+    return cur;
+  };
+
+  const ensureGroup = (groupName) => {
+    if (!state.groups.has(groupName)) {
+      state.groups.set(groupName, { topics: new Map() });
+    }
+    return state.groups.get(groupName);
+  };
+
+  const ensureGroupTopic = (groupName, topicName) => {
+    const g = ensureGroup(groupName);
+    if (!g.topics.has(topicName)) {
+      const t = state.topics.get(topicName);
+      const offsets = new Map();
+      for (let i = 0; i < t.partitions.length; i++) {
+        offsets.set(i, 0);  // 처음에는 모든 파티션의 다음 읽을 오프셋이 0
+      }
+      g.topics.set(topicName, { offsets });
+    }
+    return g.topics.get(topicName);
+  };
+
+  // ── consumer push system ──
+  // produce 시 활성 consumer들에게 새 메시지를 push
+  const registerConsumer = (consumer) => {
+    state.consumers.push(consumer);
+  };
+  const unregisterConsumer = (consumer) => {
+    const idx = state.consumers.indexOf(consumer);
+    if (idx >= 0) state.consumers.splice(idx, 1);
+  };
+  const notifyConsumers = (topicName, partition, entry) => {
+    for (const c of state.consumers) {
+      if (c.topic === topicName) {
+        c.onMessage(partition, entry);
+      }
+    }
+  };
+
+  // ── option parser ──
+  // --flag value 형태와 --property "k=v" 모두 파싱
+  const parseArgs = (tokens) => {
+    const opts = {};
+    const props = {};
+    let i = 0;
+    while (i < tokens.length) {
+      const t = tokens[i];
+      if (t.startsWith('--')) {
+        const flag = t.slice(2);
+        const next = tokens[i + 1];
+        if (next !== undefined && !next.startsWith('--')) {
+          if (flag === 'property') {
+            // "key=value" 형태
+            const eq = next.indexOf('=');
+            if (eq === -1) throw new KafkaErr(`Invalid property: ${next}`);
+            props[next.slice(0, eq)] = next.slice(eq + 1);
+            i += 2;
+          } else {
+            opts[flag] = next;
+            i += 2;
+          }
+        } else {
+          opts[flag] = true;
+          i += 1;
+        }
+      } else {
+        i += 1;  // unknown positional
+      }
+    }
+    return { opts, props };
+  };
+
+  // ── commands ──
+  const commands = {};
+
+  // === kafka-topics ===
+  commands['kafka-topics'] = (tokens, ctx) => {
+    const { opts } = parseArgs(tokens);
+
+    if (opts.create) {
+      const name = opts.topic;
+      if (!name) throw new KafkaErr(`Missing required argument: --topic`);
+      if (state.topics.has(name)) {
+        throw new KafkaErr(`Topic '${name}' already exists.`);
+      }
+      const partitions = opts.partitions ? parseInt(opts.partitions, 10) : 1;
+      const replication = opts['replication-factor'] ? parseInt(opts['replication-factor'], 10) : 1;
+      if (!Number.isFinite(partitions) || partitions < 1) {
+        throw new KafkaErr(`Invalid partitions: ${opts.partitions}`);
+      }
+      const parts = [];
+      for (let i = 0; i < partitions; i++) parts.push([]);
+      state.topics.set(name, { partitions: parts, replication });
+      return { lines: [`Created topic ${name}.`] };
+    }
+
+    if (opts.list) {
+      const names = [...state.topics.keys()].sort();
+      if (!names.length) return { lines: [''] };
+      return { lines: names };
+    }
+
+    if (opts.describe) {
+      const name = opts.topic;
+      if (name) {
+        if (!state.topics.has(name)) throw new KafkaErr(`Topic '${name}' does not exist`);
+        return { lines: describeTopic(name, opts) };
+      } else {
+        const out = [];
+        for (const n of state.topics.keys()) {
+          out.push(...describeTopic(n, opts));
+          out.push('');
+        }
+        return { lines: out };
+      }
+    }
+
+    if (opts.delete) {
+      const name = opts.topic;
+      if (!name) throw new KafkaErr(`Missing required argument: --topic`);
+      if (!state.topics.has(name)) throw new KafkaErr(`Topic '${name}' does not exist`);
+      state.topics.delete(name);
+      state.rrCounters.delete(name);
+      // group의 오프셋에서도 삭제
+      for (const [, g] of state.groups) g.topics.delete(name);
+      return { lines: [`Topic '${name}' is marked for deletion.`] };
+    }
+
+    throw new KafkaErr(`Missing action. Try --create, --list, --describe, or --delete.`);
+  };
+
+  const describeTopic = (name, opts) => {
+    const t = state.topics.get(name);
+    if (opts.output === 'json') {
+      const obj = {
+        name,
+        partitionCount: t.partitions.length,
+        replicationFactor: t.replication,
+        partitions: t.partitions.map((p, i) => ({
+          partition: i,
+          messageCount: p.length,
+          highWatermark: p.length
+        }))
+      };
+      return [JSON.stringify(obj, null, 2)];
+    }
+    const out = [];
+    out.push(`Topic: ${name}\tPartitionCount: ${t.partitions.length}\tReplicationFactor: ${t.replication}`);
+    for (let i = 0; i < t.partitions.length; i++) {
+      out.push(`\tTopic: ${name}\tPartition: ${i}\tLeader: 0\tReplicas: 0\tIsr: 0\tMessages: ${t.partitions[i].length}`);
+    }
+    return out;
+  };
+
+  // === kafka-console-producer ===
+  // 이건 producer 모드로 전환을 요청
+  commands['kafka-console-producer'] = (tokens, ctx) => {
+    const { opts, props } = parseArgs(tokens);
+    const topic = opts.topic;
+    if (!topic) throw new KafkaErr(`Missing required argument: --topic`);
+    if (!state.topics.has(topic)) throw new KafkaErr(`Topic '${topic}' does not exist. Create it first with 'kafka-topics --create'.`);
+    return {
+      enterMode: 'producer',
+      modeData: {
+        topic,
+        parseKey: props['parse.key'] === 'true',
+        keySeparator: props['key.separator'] || '\t'
+      }
+    };
+  };
+
+  // Producer 모드에서 한 줄 입력
+  const producerSend = (modeData, line) => {
+    const { topic, parseKey, keySeparator } = modeData;
+    let key = null, value = line;
+    if (parseKey) {
+      const sep = keySeparator;
+      const idx = line.indexOf(sep);
+      if (idx >= 0) {
+        key = line.slice(0, idx);
+        value = line.slice(idx + sep.length);
+      }
+    }
+    const partition = pickPartition(topic, key);
+    const t = state.topics.get(topic);
+    const offset = t.partitions[partition].length;
+    const entry = { offset, key, value, timestamp: Date.now() };
+    t.partitions[partition].push(entry);
+    // consumer들에게 알림
+    notifyConsumers(topic, partition, entry);
+    return null;  // producer는 별다른 출력 없음
+  };
+
+  // === kafka-console-consumer ===
+  commands['kafka-console-consumer'] = (tokens, ctx) => {
+    const { opts, props } = parseArgs(tokens);
+    const topic = opts.topic;
+    if (!topic) throw new KafkaErr(`Missing required argument: --topic`);
+    if (!state.topics.has(topic)) throw new KafkaErr(`Topic '${topic}' does not exist.`);
+
+    const fromBeginning = opts['from-beginning'] === true;
+    const group = opts.group || null;
+
+    const printKey = props['print.key'] === 'true';
+    const printPartition = props['print.partition'] === 'true';
+    const printOffset = props['print.offset'] === 'true';
+    const keySep = props['key.separator'] || '\t';
+
+    return {
+      enterMode: 'consumer',
+      modeData: {
+        topic, fromBeginning, group,
+        printKey, printPartition, printOffset, keySep
+      }
+    };
+  };
+
+  // Consumer 모드 시작 — 기존 메시지 출력
+  const consumerStart = (modeData) => {
+    const { topic, fromBeginning, group } = modeData;
+    const t = state.topics.get(topic);
+    const lines = [];
+
+    if (group) {
+      // 그룹 컨슈머: 그룹의 마지막 오프셋부터 읽음
+      const gt = ensureGroupTopic(group, topic);
+      // from-beginning은 그룹에 오프셋이 없을 때만 의미 있음
+      const isNewGroup = [...gt.offsets.values()].every(v => v === 0);
+      if (!fromBeginning && isNewGroup) {
+        // 그룹이 새로 생성된 상태에서 from-beginning 없으면 latest로
+        for (let p = 0; p < t.partitions.length; p++) {
+          gt.offsets.set(p, t.partitions[p].length);
+        }
+      }
+      for (let p = 0; p < t.partitions.length; p++) {
+        const startOff = gt.offsets.get(p);
+        for (let i = startOff; i < t.partitions[p].length; i++) {
+          lines.push(formatConsumerLine(modeData, p, t.partitions[p][i]));
+          gt.offsets.set(p, i + 1);
+        }
+      }
+    } else {
+      // 그룹 없음 — fan-out
+      if (fromBeginning) {
+        for (let p = 0; p < t.partitions.length; p++) {
+          for (const e of t.partitions[p]) {
+            lines.push(formatConsumerLine(modeData, p, e));
+          }
+        }
+      }
+      // from-beginning 없으면 새 메시지만
+    }
+    return lines;
+  };
+
+  // Consumer가 새 메시지 받았을 때 포맷팅
+  const formatConsumerLine = (modeData, partition, entry) => {
+    const { printKey, printPartition, printOffset, keySep } = modeData;
+    const parts = [];
+    if (printPartition) parts.push(`Partition:${partition}`);
+    if (printOffset) parts.push(`Offset:${entry.offset}`);
+    if (printKey && entry.key !== null) {
+      parts.push(`${entry.key}${keySep}${entry.value}`);
+    } else {
+      parts.push(entry.value);
+    }
+    return parts.join(keySep);
+  };
+
+  // Consumer 종료 시 — 그룹 오프셋 커밋은 이미 stream 동안 진행됨
+  const consumerStop = (consumer) => {
+    unregisterConsumer(consumer);
+  };
+
+  // Consumer 인스턴스 생성 (UI에서 호출)
+  const createConsumer = (modeData, onMessageCallback) => {
+    const consumer = {
+      topic: modeData.topic,
+      modeData,
+      onMessage: (partition, entry) => {
+        // 그룹 컨슈머라면 오프셋 업데이트
+        if (modeData.group) {
+          const gt = ensureGroupTopic(modeData.group, modeData.topic);
+          gt.offsets.set(partition, entry.offset + 1);
+        }
+        const line = formatConsumerLine(modeData, partition, entry);
+        onMessageCallback(line);
+      }
+    };
+    registerConsumer(consumer);
+    return consumer;
+  };
+
+  // === kafka-consumer-groups ===
+  commands['kafka-consumer-groups'] = (tokens, ctx) => {
+    const { opts } = parseArgs(tokens);
+
+    if (opts.list) {
+      const names = [...state.groups.keys()].sort();
+      if (!names.length) return { lines: [''] };
+      return { lines: names };
+    }
+
+    if (opts.describe) {
+      const name = opts.group;
+      if (!name) throw new KafkaErr(`Missing required argument: --group`);
+      if (!state.groups.has(name)) throw new KafkaErr(`Consumer group '${name}' does not exist.`);
+      return { lines: describeGroup(name, opts) };
+    }
+
+    if (opts.delete) {
+      const name = opts.group;
+      if (!name) throw new KafkaErr(`Missing required argument: --group`);
+      if (!state.groups.has(name)) throw new KafkaErr(`Consumer group '${name}' does not exist.`);
+      state.groups.delete(name);
+      return { lines: [`Deletion of requested consumer groups (${name}) was successful.`] };
+    }
+
+    throw new KafkaErr(`Missing action. Try --list, --describe, or --delete.`);
+  };
+
+  const describeGroup = (name, opts) => {
+    const g = state.groups.get(name);
+    if (opts.output === 'json') {
+      const result = { group: name, topics: [] };
+      for (const [tName, gt] of g.topics) {
+        const t = state.topics.get(tName);
+        if (!t) continue;
+        const parts = [];
+        for (let p = 0; p < t.partitions.length; p++) {
+          const currentOff = gt.offsets.get(p) || 0;
+          const logEnd = t.partitions[p].length;
+          parts.push({ partition: p, currentOffset: currentOff, logEndOffset: logEnd, lag: logEnd - currentOff });
+        }
+        result.topics.push({ topic: tName, partitions: parts });
+      }
+      return [JSON.stringify(result, null, 2)];
+    }
+
+    const out = [];
+    out.push(`GROUP\tTOPIC\tPARTITION\tCURRENT-OFFSET\tLOG-END-OFFSET\tLAG`);
+    for (const [tName, gt] of g.topics) {
+      const t = state.topics.get(tName);
+      if (!t) continue;
+      for (let p = 0; p < t.partitions.length; p++) {
+        const currentOff = gt.offsets.get(p) || 0;
+        const logEnd = t.partitions[p].length;
+        out.push(`${name}\t${tName}\t${p}\t${currentOff}\t${logEnd}\t${logEnd - currentOff}`);
+      }
+    }
+    return out;
+  };
+
+  // === help ===
+  commands.help = () => ({ lines: [
+    'Kafka CLI (playground) — supported commands:',
+    '',
+    '  kafka-topics --create --topic <name> --partitions <n> [--replication-factor <r>]',
+    '  kafka-topics --list',
+    '  kafka-topics --describe [--topic <name>] [--output json]',
+    '  kafka-topics --delete --topic <name>',
+    '',
+    '  kafka-console-producer --topic <name> [--property "parse.key=true"] [--property "key.separator=:"]',
+    '    > (Producer mode: enter messages line by line. Ctrl+C to exit.)',
+    '',
+    '  kafka-console-consumer --topic <name> [--from-beginning] [--group <name>]',
+    '    [--property "print.key=true"] [--property "print.partition=true"] [--property "print.offset=true"]',
+    '    (Consumer mode: receives messages. Ctrl+C to exit.)',
+    '',
+    '  kafka-consumer-groups --list',
+    '  kafka-consumer-groups --describe --group <name> [--output json]',
+    '  kafka-consumer-groups --delete --group <name>',
+    '',
+    '  --bootstrap-server localhost:9092 is optional in this playground.'
+  ]});
+
+  // ── tokenizer (Kafka용; 따옴표/공백 처리) ──
+  const tokenize = (line) => {
+    const tokens = [];
+    let cur = '';
+    let q = null;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) {
+        if (c === '\\' && i + 1 < line.length) { cur += line[++i]; continue; }
+        if (c === q) { tokens.push(cur); cur = ''; q = null; continue; }
+        cur += c;
+      } else {
+        if (c === '"' || c === "'") { q = c; continue; }
+        if (c === ' ' || c === '\t') { if (cur) { tokens.push(cur); cur = ''; } continue; }
+        cur += c;
+      }
+    }
+    if (cur) tokens.push(cur);
+    return tokens;
+  };
+
+  const exec = (line, ctx) => {
+    const tokens = tokenize(line.trim());
+    if (!tokens.length) return null;
+    const name = tokens[0];
+    const handler = commands[name];
+    if (!handler) return { lines: [`${name}: command not found`], err: true };
+    try {
+      return handler(tokens.slice(1), ctx);
+    } catch (e) {
+      if (e instanceof KafkaErr) return { lines: [`Error: ${e.message}`], err: true };
+      return { lines: [`Error: ${e.message || 'internal error'}`], err: true };
+    }
+  };
+
+  return {
+    exec,
+    producerSend,
+    consumerStart,
+    createConsumer,
+    consumerStop,
+    flush: () => {
+      state.topics.clear();
+      state.groups.clear();
+      state.consumers.length = 0;
+      state.rrCounters.clear();
+    }
+  };
+})();
+
+
+/* ==============================================================
+   UI — Redis Terminal
+============================================================== */
+function createTerminal(engine, { outId, inputId, promptText, clearBtnId, resetBtnId }) {
+  const out = document.getElementById(outId);
+  const input = document.getElementById(inputId);
+  const history = [];
+  let hIdx = -1;
+
+  const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  const append = (html, cls = '') => {
+    const div = document.createElement('div');
+    div.className = 'term__line ' + cls;
+    div.innerHTML = html;
+    out.appendChild(div);
+    out.scrollTop = out.scrollHeight;
+  };
+
+  const renderReply = (reply, depth = 0) => {
+    const indent = '  '.repeat(depth);
+    if (!reply) return;
+    if (reply.type === 'multi') {
+      reply.value.forEach(r => renderReply(r, depth));
+      return;
+    }
+    switch (reply.type) {
+      case 'ok': append(indent + 'OK', 'term__line--ok'); break;
+      case 'err': append(indent + `(error) ${esc(reply.value)}`, 'term__line--err'); break;
+      case 'nil':
+        append(indent + '(nil)', 'term__line--nil');
+        if (reply.note) append('  ' + esc(reply.note), 'term__line--sys');
+        break;
+      case 'int': append(indent + `(integer) ${reply.value}`, 'term__line--int'); break;
+      case 'str': append(indent + `"${esc(reply.value)}"`, 'term__line--str'); break;
+      case 'raw': append(indent + esc(reply.value), 'term__line--ok'); break;
+      case 'arr':
+        if (!reply.value.length) { append(indent + '(empty array)', 'term__line--nil'); break; }
+        reply.value.forEach((item, i) => {
+          if (item.type === 'arr') {
+            append(indent + `${i + 1})`, 'term__line--arr-idx');
+            renderReply(item, depth + 1);
+          } else {
+            const idx = `<span class="term__line--arr-idx">${i + 1})</span>`;
+            let content = '';
+            let cls = '';
+            switch (item.type) {
+              case 'str': content = `"${esc(item.value)}"`; cls = 'term__line--str'; break;
+              case 'nil': content = '(nil)'; cls = 'term__line--nil'; break;
+              case 'int': content = `(integer) ${item.value}`; cls = 'term__line--int'; break;
+              case 'ok': content = 'OK'; cls = 'term__line--ok'; break;
+              case 'err': content = `(error) ${esc(item.value)}`; cls = 'term__line--err'; break;
+              case 'raw': content = esc(item.value); cls = 'term__line--ok'; break;
+            }
+            append(indent + `${idx} ${content}`, cls);
+          }
+        });
+        break;
+    }
+  };
+
+  const runLine = (line) => {
+    if (!line.trim()) return;
+    append(`<span class="term__line-prompt">${promptText}</span>${esc(line)}`, 'term__line--cmd');
+    const reply = engine.exec(line);
+    renderReply(reply);
+    history.unshift(line);
+    if (history.length > 100) history.length = 100;
+    hIdx = -1;
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const line = input.value;
+      input.value = '';
+      runLine(line);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (hIdx + 1 < history.length) { hIdx++; input.value = history[hIdx]; }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (hIdx > 0) { hIdx--; input.value = history[hIdx]; }
+      else if (hIdx === 0) { hIdx = -1; input.value = ''; }
+    }
+  });
+
+  document.getElementById(clearBtnId).addEventListener('click', () => {
+    out.innerHTML = '';
+  });
+  document.getElementById(resetBtnId).addEventListener('click', () => {
+    if (confirm('데이터를 모두 초기화합니다. 계속할까요?')) {
+      engine.flush();
+      out.innerHTML = '';
+      append('(reset) 모든 데이터가 초기화되었습니다.', 'term__line--sys');
+    }
+  });
+
+  return { runLine, append };
+}
+
+// 두 터미널 초기화
+const redisTerm = createTerminal(RedisEngine, {
+  outId: 'termOutRedis',
+  inputId: 'termInRedis',
+  promptText: '127.0.0.1:6379&gt; ',
+  clearBtnId: 'btnClearRedis',
+  resetBtnId: 'btnResetRedis'
+});
+
+/* ==============================================================
+   UI — Kafka Terminal (모드 시스템: normal / producer / consumer)
+============================================================== */
+function createKafkaTerminal() {
+  const out = document.getElementById('termOutKafka');
+  const input = document.getElementById('termInKafka');
+  const promptEl = document.getElementById('kafkaPrompt');
+  const labelEl = document.getElementById('kafkaLabelMode');
+  const paneEl = document.getElementById('kafkaPane');
+  const indicatorTextEl = document.getElementById('kafkaModeIndicatorText');
+  const exitBtn = document.getElementById('kafkaModeExit');
+  const history = [];
+  let hIdx = -1;
+
+  // 모드 상태
+  let mode = 'normal';
+  let modeData = null;
+  let activeConsumer = null;
+
+  const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  const append = (text, cls = '') => {
+    const div = document.createElement('div');
+    div.className = 'term__line ' + cls;
+    div.innerHTML = text;
+    out.appendChild(div);
+    out.scrollTop = out.scrollHeight;
+  };
+
+  // 모드별 UI 설정
+  const setMode = (newMode, data = null) => {
+    mode = newMode;
+    modeData = data;
+
+    // pane 클래스 초기화
+    paneEl.classList.remove('is-producer', 'is-consumer');
+    // 프롬프트 클래스 초기화
+    promptEl.classList.remove('term__prompt--producer', 'term__prompt--consumer');
+
+    if (mode === 'normal') {
+      promptEl.textContent = '$';
+      labelEl.textContent = 'kafka-cli';
+      input.placeholder = 'kafka-topics --create --topic events --partitions 3';
+      input.focus();
+    } else if (mode === 'producer') {
+      promptEl.textContent = '>';
+      promptEl.classList.add('term__prompt--producer');
+      paneEl.classList.add('is-producer');
+      indicatorTextEl.textContent = 'PRODUCER';
+      labelEl.textContent = 'kafka-cli';
+      input.placeholder = data.parseKey
+        ? `key${data.keySeparator}value`
+        : 'message';
+      input.focus();
+    } else if (mode === 'consumer') {
+      promptEl.textContent = '…';
+      promptEl.classList.add('term__prompt--consumer');
+      paneEl.classList.add('is-consumer');
+      indicatorTextEl.textContent = 'CONSUMER';
+      labelEl.textContent = 'kafka-cli';
+      input.placeholder = '새 메시지를 기다리는 중';
+      input.focus();
+    }
+  };
+
+  // 모드 종료 (Ctrl+C, :exit, Exit 버튼 공통)
+  const exitMode = () => {
+    if (mode === 'normal') return;
+    const promptChar = mode === 'producer' ? '&gt;' : '…';
+    const promptColor = mode === 'producer' ? 'var(--term-yellow)' : 'var(--term-green)';
+    append(`<span class="term__line-prompt" style="color: ${promptColor};">${promptChar}</span> <span class="term__line--sys">^C</span>`, '');
+    if (mode === 'consumer' && activeConsumer) {
+      KafkaEngine.consumerStop(activeConsumer);
+      activeConsumer = null;
+    }
+    setMode('normal');
+    input.value = '';
+  };
+
+  // 출력 라인 처리
+  const renderLine = (line, cls = '') => {
+    if (line === '') {
+      append('&nbsp;', cls);
+    } else {
+      append(esc(line).replace(/\t/g, '    '), cls);
+    }
+  };
+
+  // 일반 모드에서 명령어 실행
+  const execNormal = (line) => {
+    append(`<span class="term__line-prompt" style="color: var(--term-accent);">$</span> ${esc(line)}`, 'term__line--cmd');
+    const result = KafkaEngine.exec(line);
+    if (!result) return;
+
+    if (result.enterMode === 'producer') {
+      setMode('producer', result.modeData);
+      return;
+    }
+    if (result.enterMode === 'consumer') {
+      const initialLines = KafkaEngine.consumerStart(result.modeData);
+      for (const ln of initialLines) {
+        renderLine(ln, 'term__line--ok');
+      }
+      activeConsumer = KafkaEngine.createConsumer(result.modeData, (ln) => {
+        renderLine(ln, 'term__line--ok');
+      });
+      setMode('consumer', result.modeData);
+      return;
+    }
+
+    const cls = result.err ? 'term__line--err' : 'term__line--ok';
+    for (const l of result.lines) {
+      renderLine(l, cls);
+    }
+  };
+
+  // Producer 모드에서 메시지 입력
+  const execProducer = (line) => {
+    append(`<span class="term__line-prompt" style="color: var(--term-yellow);">&gt;</span> ${esc(line)}`, 'term__line--cmd');
+    KafkaEngine.producerSend(modeData, line);
+  };
+
+  // 키 이벤트
+  input.addEventListener('keydown', (e) => {
+    // Ctrl+C / Cmd+C: 텍스트가 선택되지 않은 경우만 가로채기
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+      const hasSelection = input.selectionStart !== input.selectionEnd;
+      if (!hasSelection && mode !== 'normal') {
+        e.preventDefault();
+        exitMode();
+        return;
+      }
+    }
+
+    if (e.key === 'Enter') {
+      const line = input.value;
+      input.value = '';
+
+      // :exit / :q / \q 백업 종료 명령
+      const trimmed = line.trim();
+      if ((trimmed === ':exit' || trimmed === ':q' || trimmed === '\\q') && mode !== 'normal') {
+        exitMode();
+        return;
+      }
+
+      if (mode === 'normal') {
+        if (!line.trim()) return;
+        execNormal(line);
+        history.unshift(line);
+        if (history.length > 100) history.length = 100;
+        hIdx = -1;
+      } else if (mode === 'producer') {
+        if (line === '') return;
+        execProducer(line);
+      }
+      // consumer 모드: 일반 입력 무시
+    } else if (e.key === 'ArrowUp' && mode === 'normal') {
+      e.preventDefault();
+      if (hIdx + 1 < history.length) { hIdx++; input.value = history[hIdx]; }
+    } else if (e.key === 'ArrowDown' && mode === 'normal') {
+      e.preventDefault();
+      if (hIdx > 0) { hIdx--; input.value = history[hIdx]; }
+      else if (hIdx === 0) { hIdx = -1; input.value = ''; }
+    }
+  });
+
+  // Exit 버튼
+  exitBtn.addEventListener('click', () => {
+    if (mode !== 'normal') exitMode();
+  });
+
+  // 외부에서 명령어 주입 (Try-it 버튼용)
+  // 일반 명령(kafka-... 로 시작 또는 help)이면 모드 자동 종료 후 실행
+  const runLine = (line) => {
+    if (!line.trim()) return;
+    const trimmed = line.trim();
+    const looksLikeCommand = trimmed.startsWith('kafka-') || trimmed === 'help';
+
+    if (mode !== 'normal' && looksLikeCommand) {
+      exitMode();
+    }
+
+    if (mode === 'normal') {
+      execNormal(trimmed);
+      history.unshift(trimmed);
+      if (history.length > 100) history.length = 100;
+      hIdx = -1;
+    } else if (mode === 'producer') {
+      execProducer(trimmed);
+    }
+  };
+
+  // Clear / Reset
+  document.getElementById('btnClearKafka').addEventListener('click', () => {
+    out.innerHTML = '';
+  });
+  document.getElementById('btnResetKafka').addEventListener('click', () => {
+    if (confirm('Kafka 데이터를 모두 초기화합니다. 계속할까요?')) {
+      if (activeConsumer) {
+        KafkaEngine.consumerStop(activeConsumer);
+        activeConsumer = null;
+      }
+      setMode('normal');
+      KafkaEngine.flush();
+      out.innerHTML = '';
+      append('<span class="term__line--sys">(reset) 모든 데이터가 초기화되었습니다.</span>', '');
+    }
+  });
+
+  setMode('normal');
+
+  return { runLine, append };
+}
+
+const kafkaTerm = createKafkaTerminal();
+
+// Pub/Sub push 메시지 콜백
+RedisEngine.setPushCallback((push) => {
+  if (push.kind === 'message') {
+    redisTerm.append(`<span class="term__line--push">[push]</span> 1) "message"`, 'term__line--push');
+    redisTerm.append(`         2) "${push.channel}"`, 'term__line--push');
+    redisTerm.append(`         3) "${push.message}"`, 'term__line--push');
+  } else if (push.kind === 'pmessage') {
+    redisTerm.append(`<span class="term__line--push">[push]</span> 1) "pmessage"`, 'term__line--push');
+    redisTerm.append(`         2) "${push.pattern}"`, 'term__line--push');
+    redisTerm.append(`         3) "${push.channel}"`, 'term__line--push');
+    redisTerm.append(`         4) "${push.message}"`, 'term__line--push');
+  }
+});
+
+// Try-it 버튼 이벤트 연결
+document.querySelectorAll('.try[data-cmd]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const cmd = btn.dataset.cmd;
+    const engineType = btn.dataset.engine || 'redis';
+    if (engineType === 'redis') {
+      redisTerm.runLine(cmd);
+    } else if (engineType === 'kafka') {
+      kafkaTerm.runLine(cmd);
+    }
+  });
+});
+</script>
+</body>
+</html>
