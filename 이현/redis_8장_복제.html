@@ -1,0 +1,2074 @@
+<!doctype html>
+
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>개발자를 위한 레디스 8장 · 복제</title>
+    <link
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #08111f;
+        --panel: #0f1b2d;
+        --panel2: #13243b;
+        --paper: #f8fafc;
+        --paper2: #eef4fb;
+        --line: rgba(148, 163, 184, 0.26);
+        --line2: #d8e2ee;
+        --text: #d8e2f0;
+        --muted: #94a3b8;
+        --dim: #64748b;
+        --strong: #ffffff;
+        --ink: #152238;
+        --accent: #38bdf8;
+        --accent2: #34d399;
+        --warn: #f59e0b;
+        --danger: #fb7185;
+        --violet: #a78bfa;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+        --term: #050816;
+        --term-text: #dbeafe;
+        --term-green: #86efac;
+        --term-blue: #7dd3fc;
+        --term-yellow: #fde68a;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        min-height: 100vh;
+        background:
+          radial-gradient(
+            circle at 20% 0%,
+            rgba(56, 189, 248, 0.22),
+            transparent 32%
+          ),
+          radial-gradient(
+            circle at 82% 18%,
+            rgba(52, 211, 153, 0.16),
+            transparent 34%
+          ),
+          var(--bg);
+        font-family:
+          "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+        color: var(--text);
+        font-size: 15px;
+        line-height: 1.72;
+        -webkit-font-smoothing: antialiased;
+      }
+      code,
+      pre {
+        font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      }
+      .deck {
+        display: grid;
+        grid-template-columns: 286px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+      .toc {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        padding: 30px 20px 40px;
+        border-right: 1px solid var(--line);
+        background: rgba(8, 17, 31, 0.78);
+        backdrop-filter: blur(18px);
+        overflow-y: auto;
+      }
+
+      .toc__brand small {
+        display: block;
+        color: var(--accent2);
+        font-size: 10px;
+        font-weight: 950;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .toc__brand b {
+        display: block;
+        margin-top: 5px;
+        color: #fff;
+        font-size: 18px;
+        font-weight: 950;
+        letter-spacing: -0.02em;
+      }
+      .toc a {
+        display: block;
+        margin: 3px 0;
+        padding: 10px 12px;
+        border: 1px solid transparent;
+        border-radius: 12px;
+        color: #b6c4d6;
+        text-decoration: none;
+        font-size: 12.5px;
+        font-weight: 850;
+        line-height: 1.35;
+      }
+      .toc a:hover {
+        border-color: rgba(56, 189, 248, 0.24);
+        background: rgba(56, 189, 248, 0.08);
+        color: #fff;
+        transform: translateX(2px);
+      }
+      .toc small {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        width: 25px;
+        height: 20px;
+        margin-right: 7px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.12);
+        color: #7dd3fc;
+        font-size: 10px;
+        font-weight: 950;
+      }
+      .content {
+        min-width: 0;
+      }
+      .hero {
+        margin: 28px 38px 0;
+        padding: 56px 54px 50px;
+        border: 1px solid rgba(56, 189, 248, 0.28);
+        border-radius: 28px;
+        background: linear-gradient(
+          135deg,
+          rgba(15, 27, 45, 0.96),
+          rgba(6, 12, 24, 0.98)
+        );
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+      .hero:before {
+        content: "";
+        position: absolute;
+        inset: auto -100px -170px auto;
+        width: 520px;
+        height: 520px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(56, 189, 248, 0.2),
+          transparent 66%
+        );
+      }
+      .hero:after {
+        content: "";
+        position: absolute;
+        left: 54px;
+        right: 54px;
+        bottom: 0;
+        height: 2px;
+        background: linear-gradient(
+          90deg,
+          var(--accent),
+          var(--accent2),
+          transparent
+        );
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+        color: #a7f3d0;
+        font-size: 11px;
+        font-weight: 950;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        position: relative;
+        z-index: 1;
+      }
+      .eyebrow:before {
+        content: "";
+        width: 28px;
+        height: 2px;
+        background: var(--accent);
+      }
+      h1 {
+        position: relative;
+        z-index: 1;
+        max-width: 930px;
+        color: #fff;
+        font-size: clamp(2.5rem, 4vw, 4.2rem);
+        font-weight: 950;
+        letter-spacing: -0.04em;
+        line-height: 1.02;
+      }
+      .hero p {
+        position: relative;
+        z-index: 1;
+        max-width: 840px;
+        margin-top: 18px;
+        color: #c7d2e5;
+        font-size: 16px;
+      }
+      .hero-grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 28px;
+      }
+      .metric {
+        padding: 16px 16px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.055);
+      }
+      .metric b {
+        display: block;
+        color: #fff;
+        font-size: 18px;
+        font-weight: 950;
+      }
+      .metric span {
+        display: block;
+        margin-top: 3px;
+        color: #9fb0c8;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .main {
+        max-width: 1160px;
+        padding: 34px 38px 120px;
+      }
+      section {
+        margin-top: 26px;
+        padding: 34px 38px 38px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 24px;
+        background: rgba(248, 250, 252, 0.97);
+        color: var(--ink);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.12);
+      }
+      section.dark {
+        background: linear-gradient(
+          135deg,
+          rgba(15, 27, 45, 0.98),
+          rgba(8, 17, 31, 0.98)
+        );
+        color: var(--text);
+      }
+      .kicker {
+        color: #0284c7;
+        font-size: 11px;
+        font-weight: 950;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .dark .kicker {
+        color: #7dd3fc;
+      }
+      h2 {
+        margin-top: 5px;
+        color: #0f172a;
+        font-size: clamp(1.55rem, 2.4vw, 2.35rem);
+        font-weight: 950;
+        letter-spacing: -0.025em;
+        line-height: 1.17;
+      }
+      .dark h2 {
+        color: #fff;
+      }
+      h3 {
+        margin: 24px 0 9px;
+        color: #0f172a;
+        font-size: 19px;
+        font-weight: 950;
+      }
+      .dark h3 {
+        color: #fff;
+      }
+      h4 {
+        margin: 18px 0 8px;
+        color: #0f172a;
+        font-size: 15px;
+        font-weight: 950;
+      }
+      .dark h4 {
+        color: #fff;
+      }
+      p + p {
+        margin-top: 8px;
+      }
+      .lead {
+        margin-top: 10px;
+        color: #55657b;
+      }
+      .dark .lead {
+        color: #cbd5e1;
+      }
+      ul,
+      ol {
+        margin: 8px 0 0 20px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      strong {
+        font-weight: 950;
+        color: #0f172a;
+      }
+      .dark strong {
+        color: #fff;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+      }
+      .grid3 {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+      }
+      .card {
+        padding: 18px;
+        border: 1px solid var(--line2);
+        border-radius: 18px;
+        background: #fff;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+      }
+      .dark .card {
+        border-color: rgba(148, 163, 184, 0.22);
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .card b {
+        display: block;
+        margin-bottom: 6px;
+        color: #0f172a;
+        font-size: 15px;
+        font-weight: 950;
+      }
+      .dark .card b {
+        color: #fff;
+      }
+      .card p {
+        color: #64748b;
+        font-size: 13.5px;
+        line-height: 1.6;
+      }
+      .dark .card p {
+        color: #b6c4d6;
+      }
+      .note {
+        margin-top: 16px;
+        padding: 15px 17px;
+        border: 1px solid #cfe0ef;
+        border-radius: 16px;
+        background: #f1f7fd;
+        color: #475569;
+        font-size: 13.5px;
+      }
+      .note strong {
+        display: block;
+        margin-bottom: 3px;
+      }
+      .note.warn {
+        border-color: #fed7aa;
+        background: #fff7ed;
+        color: #9a3412;
+      }
+      .note.danger {
+        border-color: #fecdd3;
+        background: #fff1f2;
+        color: #9f1239;
+      }
+      .dark .note {
+        border-color: rgba(56, 189, 248, 0.22);
+        background: rgba(56, 189, 248, 0.09);
+        color: #cbd5e1;
+      }
+      .dark .note.warn {
+        border-color: rgba(245, 158, 11, 0.35);
+        background: rgba(245, 158, 11, 0.1);
+        color: #fde68a;
+      }
+      .dark .note.danger {
+        border-color: rgba(251, 113, 133, 0.36);
+        background: rgba(251, 113, 133, 0.12);
+        color: #fecdd3;
+      }
+      .flow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 18px;
+        padding: 18px;
+        border: 1px solid #d6e3f0;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #f8fbff, #eef9ff);
+      }
+      .dark .flow {
+        border-color: rgba(148, 163, 184, 0.25);
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .node {
+        min-width: 130px;
+        padding: 14px 16px;
+        border: 1px solid #b8c9dc;
+        border-radius: 16px;
+        background: #fff;
+        text-align: center;
+        color: #0f172a;
+        font-weight: 950;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      }
+      .dark .node {
+        border-color: rgba(125, 211, 252, 0.35);
+        background: #0b1525;
+        color: #fff;
+      }
+      .node small {
+        display: block;
+        margin-top: 2px;
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 750;
+      }
+      .dark .node small {
+        color: #94a3b8;
+      }
+      .arrow {
+        color: #0284c7;
+        font-size: 22px;
+        font-weight: 950;
+      }
+      .dark .arrow {
+        color: #7dd3fc;
+      }
+      .topology {
+        display: grid;
+        grid-template-columns: 1fr 1.15fr 1fr;
+        gap: 20px;
+        align-items: center;
+        margin-top: 20px;
+        padding: 24px;
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        border-radius: 24px;
+        background: linear-gradient(
+          135deg,
+          rgba(56, 189, 248, 0.08),
+          rgba(52, 211, 153, 0.06)
+        );
+      }
+      .srv {
+        padding: 22px;
+        border-radius: 22px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: #0b1525;
+        color: #fff;
+        text-align: center;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+      }
+      .srv.master {
+        border-color: rgba(52, 211, 153, 0.55);
+        background: linear-gradient(180deg, #0f2b2d, #0b1525);
+      }
+      .srv.replica {
+        border-color: rgba(56, 189, 248, 0.45);
+      }
+      .srv b {
+        display: block;
+        font-size: 20px;
+      }
+      .srv span {
+        display: block;
+        margin-top: 5px;
+        color: #aebed1;
+        font-size: 12px;
+        font-weight: 850;
+      }
+      .links {
+        display: grid;
+        gap: 9px;
+      }
+      .linkline {
+        height: 2px;
+        background: linear-gradient(90deg, var(--accent2), var(--accent));
+        position: relative;
+      }
+      .linkline:after {
+        content: "▶";
+        position: absolute;
+        right: -3px;
+        top: -11px;
+        color: var(--accent);
+        font-size: 16px;
+      }
+      .replication-sketch,
+      .backup-sketch {
+        margin-top: 20px;
+        padding: 22px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.055);
+      }
+      .replication-sketch svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .sketch-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 28px;
+        align-items: start;
+      }
+      .redis-node {
+        display: grid;
+        justify-items: center;
+        gap: 8px;
+        color: #fff;
+        font-weight: 950;
+      }
+      .redis-logo {
+        position: relative;
+        width: 92px;
+        height: 64px;
+        transform: skewY(-6deg);
+      }
+      .redis-logo span {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 22px;
+        border-radius: 7px;
+        background: #dc2626;
+        box-shadow: inset 0 -4px 0 rgba(255, 255, 255, 0.18);
+      }
+      .redis-logo span:nth-child(1) {
+        top: 0;
+      }
+      .redis-logo span:nth-child(2) {
+        top: 18px;
+      }
+      .redis-logo span:nth-child(3) {
+        top: 36px;
+      }
+      .sketch-card {
+        padding: 11px 13px;
+        border: 1px solid rgba(125, 211, 252, 0.32);
+        border-radius: 14px;
+        background: rgba(8, 17, 31, 0.72);
+        color: #dbeafe;
+        font-size: 12px;
+        font-weight: 850;
+        text-align: center;
+      }
+      .sketch-buffer {
+        min-height: 54px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(125, 211, 252, 0.38);
+        border-radius: 18px;
+        background: rgba(226, 232, 240, 0.12);
+        color: #dbeafe;
+        font-weight: 950;
+      }
+      .sketch-file {
+        width: 74px;
+        height: 88px;
+        margin: 0 auto;
+        border: 2px solid rgba(186, 230, 253, 0.82);
+        border-radius: 7px;
+        background: rgba(15, 23, 42, 0.78);
+        position: relative;
+      }
+      .sketch-file:before,
+      .sketch-file:after {
+        content: "";
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        height: 2px;
+        background: rgba(219, 234, 254, 0.8);
+      }
+      .sketch-file:before {
+        top: 26px;
+        box-shadow:
+          0 12px 0 rgba(219, 234, 254, 0.8),
+          0 24px 0 rgba(219, 234, 254, 0.8);
+      }
+      .sketch-file:after {
+        bottom: 20px;
+      }
+      .sketch-flow {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 14px;
+        align-items: center;
+        margin-top: 18px;
+      }
+      .sketch-arrow {
+        color: #7dd3fc;
+        font-size: 28px;
+        font-weight: 950;
+        text-align: center;
+      }
+      .backup-row .sketch-arrow {
+        font-size: 13px;
+        line-height: 1.35;
+        word-break: keep-all;
+      }
+      .sketch-caption {
+        margin-top: 12px;
+        color: #cbd5e1;
+        font-size: 13px;
+        font-weight: 850;
+        text-align: center;
+      }
+      .backup-row {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 18px;
+        align-items: center;
+        padding: 16px 0;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      }
+      .backup-row:last-child {
+        border-bottom: 0;
+      }
+      .data-badge {
+        display: inline-flex;
+        margin-top: -8px;
+        padding: 5px 9px;
+        border-radius: 4px;
+        background: #1f2937;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 950;
+      }
+      .timeline {
+        display: grid;
+        gap: 11px;
+        margin-top: 18px;
+      }
+      .step {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 14px;
+        align-items: start;
+        padding: 15px 17px;
+        border: 1px solid #d7e2ee;
+        border-radius: 18px;
+        background: #fff;
+      }
+      .dark .step {
+        border-color: rgba(148, 163, 184, 0.22);
+        background: rgba(255, 255, 255, 0.055);
+      }
+      .num {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        background: #0ea5e9;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 950;
+      }
+      .step b {
+        color: #0f172a;
+      }
+      .dark .step b {
+        color: #fff;
+      }
+      .step p {
+        margin-top: 3px;
+        color: #64748b;
+        font-size: 13.3px;
+      }
+      .dark .step p {
+        color: #b6c4d6;
+      }
+      .cmd {
+        margin: 13px 0 15px;
+        border: 1px solid rgba(15, 23, 42, 0.85);
+        border-radius: 16px;
+        overflow: hidden;
+        background: var(--term);
+      }
+      .cmd pre {
+        padding: 16px 18px;
+        color: var(--term-text);
+        font-size: 12.8px;
+        line-height: 1.55;
+        white-space: pre;
+        overflow-x: auto;
+      }
+      .c-prompt {
+        color: var(--term-blue);
+      }
+      .c-result {
+        color: var(--term-green);
+      }
+      .c-comment {
+        color: #94a3b8;
+      }
+      .c-warn {
+        color: var(--term-yellow);
+      }
+      table {
+        width: 100%;
+        margin-top: 15px;
+        border-collapse: collapse;
+        border: 1px solid #d7e2ee;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #fff;
+        font-size: 13.3px;
+      }
+      th,
+      td {
+        padding: 12px 13px;
+        border-bottom: 1px solid #e4edf6;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #eaf3fb;
+        color: #0f172a;
+        font-size: 11px;
+        font-weight: 950;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      .dark table {
+        border-color: rgba(148, 163, 184, 0.25);
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .dark th {
+        background: rgba(56, 189, 248, 0.12);
+        color: #fff;
+      }
+      .dark td {
+        border-bottom-color: rgba(148, 163, 184, 0.18);
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: #e0f2fe;
+        color: #0369a1;
+        font-size: 11px;
+        font-weight: 950;
+      }
+      .badge.green {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .badge.red {
+        background: #ffe4e6;
+        color: #be123c;
+      }
+      .dark .badge {
+        background: rgba(56, 189, 248, 0.14);
+        color: #bae6fd;
+      }
+      .dark .badge.green {
+        background: rgba(52, 211, 153, 0.15);
+        color: #bbf7d0;
+      }
+      .dark .badge.red {
+        background: rgba(251, 113, 133, 0.15);
+        color: #fecdd3;
+      }
+      details.box {
+        margin-top: 16px;
+        border: 1px solid #d7e2ee;
+        border-radius: 18px;
+        background: #fff;
+        overflow: hidden;
+      }
+      .dark details.box {
+        border-color: rgba(148, 163, 184, 0.22);
+        background: rgba(255, 255, 255, 0.045);
+      }
+      details.box > summary {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 18px;
+        cursor: pointer;
+        color: #0f172a;
+        font-weight: 950;
+        list-style: none;
+      }
+      .dark details.box > summary {
+        color: #fff;
+      }
+      details.box > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.box > summary:before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-right: 2px solid #64748b;
+        border-bottom: 2px solid #64748b;
+        transform: rotate(-45deg);
+        transition: 0.2s;
+      }
+      .dark details.box > summary:before {
+        border-color: #94a3b8;
+      }
+      details.box[open] > summary:before {
+        transform: rotate(45deg);
+      }
+      .tag {
+        margin-left: auto;
+        color: #64748b;
+        font-size: 10.5px;
+        font-weight: 950;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+      .box__body {
+        padding: 0 20px 22px 42px;
+      }
+      .offset-board {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .offset {
+        padding: 16px;
+        border: 1px solid #d7e2ee;
+        border-radius: 18px;
+        background: #fff;
+        text-align: center;
+      }
+      .dark .offset {
+        border-color: rgba(148, 163, 184, 0.25);
+        background: rgba(255, 255, 255, 0.055);
+      }
+      .offset b {
+        display: block;
+        color: #0f172a;
+        font-size: 16px;
+      }
+      .dark .offset b {
+        color: #fff;
+      }
+      .bar {
+        height: 10px;
+        margin-top: 12px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        overflow: hidden;
+      }
+      .bar span {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent2), var(--accent));
+      }
+      .offset small {
+        display: block;
+        margin-top: 8px;
+        color: #64748b;
+        font-weight: 850;
+      }
+      .dark .offset small {
+        color: #aebed1;
+      }
+      .compare {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 16px;
+      }
+      .compare .panel {
+        padding: 18px;
+        border-radius: 20px;
+        border: 1px solid #d7e2ee;
+        background: #fff;
+      }
+      .dark .compare .panel {
+        border-color: rgba(148, 163, 184, 0.25);
+        background: rgba(255, 255, 255, 0.055);
+      }
+      .panel h4 {
+        margin-top: 0;
+        color: #0f172a;
+      }
+      .dark .panel h4 {
+        color: #fff;
+      }
+      .watermark {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 28px;
+        color: #94a3b8;
+        font-size: 12px;
+        font-weight: 850;
+      }
+      .to-top {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 20;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 42px;
+        padding: 0 15px;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 999px;
+        background: #0ea5e9;
+        color: #fff;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 950;
+        box-shadow: 0 12px 28px rgba(14, 165, 233, 0.28);
+      }
+      .to-top:hover {
+        transform: translateY(-2px);
+        background: #0284c7;
+      }
+      @media (max-width: 1180px) {
+        .deck {
+          display: block;
+        }
+        .toc {
+          display: none;
+        }
+        .hero {
+          margin: 18px 18px 0;
+        }
+        .main {
+          padding: 24px 18px 90px;
+        }
+      }
+      @media (max-width: 780px) {
+        .hero,
+        .main,
+        section {
+          padding-left: 22px;
+          padding-right: 22px;
+        }
+        .hero-grid,
+        .grid2,
+        .grid3,
+        .topology,
+        .sketch-grid,
+        .sketch-flow,
+        .backup-row,
+        .offset-board,
+        .compare {
+          grid-template-columns: 1fr;
+        }
+        .box__body {
+          padding-left: 20px;
+        }
+        .node {
+          min-width: 100%;
+        }
+      }
+
+      .sidebar,
+      .toc,
+      .left-panel {
+        overflow: hidden !important;
+      }
+
+      .sidebar * {
+        box-sizing: border-box;
+      }
+
+      .chapter-card,
+      .title-card,
+      .hero-card {
+        max-width: 100%;
+        overflow-wrap: break-word;
+      }
+
+      body {
+        overflow-x: hidden;
+      }
+
+      .toc {
+        overflow-x: hidden !important;
+      }
+
+      .toc__brand b {
+        display: block;
+        font-size: 42px;
+        line-height: 1.2;
+        word-break: keep-all;
+      }
+
+      .toc__brand small {
+        display: block;
+        line-height: 1.6;
+      }
+
+      .toc__brand {
+        min-height: 150px !important;
+        padding: 24px 20px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        overflow: visible;
+      }
+
+      .toc__brand b {
+        font-size: 22px !important;
+        font-weight: 800 !important;
+        margin-top: 10px !important;
+        letter-spacing: -0.5px !important;
+      }
+
+      .toc__brand small {
+        display: block;
+        width: auto;
+        white-space: nowrap;
+        letter-spacing: 2px;
+        font-size: 11px;
+        line-height: 1.4;
+        position: relative;
+        z-index: 2;
+      }
+    </style>
+  </head>
+  <body>
+    <a class="to-top" href="#top">↑ 맨 위로</a>
+    <div class="deck">
+      <nav class="toc">
+        <div class="toc__brand"><small>Redis Chapter 8. 복제</small></div>
+        <a href="#structure"><small>01</small> 레디스에서의 복제 구조</a>
+        <a href="#setup"><small>01-1</small> 복제 구조 구성하기</a>
+        <a href="#failover"><small>01-2</small> 장애 전환과 페일오버</a>
+        <a href="#auth"><small>01-3</small> 패스워드 설정</a>
+        <a href="#mechanism"><small>02</small> 복제 메커니즘</a>
+        <a href="#async"
+          ><small>02-1</small> 비동기 방식으로 동작하는 복제 연결</a
+        >
+        <a href="#replid"><small>02-2</small> 복제 ID</a>
+        <a href="#partial"><small>02-3</small> 부분 재동기화</a>
+        <a href="#secondary"><small>02-4</small> Secondary 복제 ID</a>
+        <a href="#readonly"
+          ><small>02-5</small> 읽기 전용 모드로 동작하는 복제본 노드</a
+        >
+        <a href="#stale"><small>02-6</small> 유효하지 않은 복제본 데이터</a>
+        <a href="#nobackup"
+          ><small>02-7</small> 백업을 사용하지 않는 경우에서의 데이터 복제</a
+        >
+      </nav>
+      <div class="content">
+        <header class="hero" id="top">
+          <div class="eyebrow">개발자를 위한 레디스 · 8장</div>
+          <h1>
+            Redis Replication<br />복제는 백업이 아니라 고가용성의 시작이다
+          </h1>
+          <p></p>
+        </header>
+        <main class="main">
+          <section id="structure">
+            <div class="kicker">01 · Replication Structure</div>
+            <h2>레디스 복제는 Single Master 구조다</h2>
+            <p class="lead">
+              Redis는 하나의 복제 그룹 안에서 멀티 마스터를 지원하지 않는다.
+              쓰기 기준점은 마스터 하나이며, 복제본은 마스터에서 변경된 데이터를
+              그대로 받아와 같은 상태를 유지한다.
+            </p>
+            <div class="topology">
+              <div class="srv master">
+                <b>Master</b>
+                <span>모든 데이터 입력 처리</span>
+              </div>
+              <div class="links">
+                <div class="linkline"></div>
+                <div class="linkline"></div>
+                <div class="linkline"></div>
+              </div>
+              <div class="srv replica">
+                <b>Replica</b>
+                <span>읽기 전용 복제본</span>
+              </div>
+            </div>
+            <div class="grid3">
+              <div class="card">
+                <b>멀티 마스터 미지원</b>
+                <p>
+                  한 복제 그룹에서 동시에 쓰기를 받는 마스터를 여러 개 두는
+                  구조가 아니다.
+                </p>
+              </div>
+              <div class="card">
+                <b>마스터는 복제본이 아님</b>
+                <p>
+                  쓰기 기준점이 되는 마스터는 다른 노드의 변경을 받아오는 복제본
+                  역할을 하지 않는다.
+                </p>
+              </div>
+              <div class="card">
+                <b>변경분은 Master에서 Replica로</b>
+                <p>
+                  모든 데이터 입력은 마스터에서 처리되고, 복제본은 그 변경
+                  데이터를 전달받는다.
+                </p>
+              </div>
+            </div>
+            <div class="note">
+              <strong>핵심 정리</strong>복제본은 읽기 확장과 장애 대응을 돕는
+              노드다. 데이터의 원본 기준은 마스터이며, 복제본에서 직접 데이터를
+              쓰는 방식으로 멀티 마스터처럼 운영하지 않는다.
+            </div>
+          </section>
+          <section id="setup">
+            <div class="kicker">03 · REPLICAOF</div>
+            <h2 id="setup">복제 구조 구성하기</h2>
+            <p class="lead">
+              복제본이 될 노드에서 <code>REPLICAOF</code> 커맨드를 실행하면
+              마스터와 복제 연결이 시작된다.
+            </p>
+            <div class="cmd">
+              <pre><span class="c-prompt">127.0.0.1:6379&gt;</span> REPLICAOF &lt;master-ip&gt; &lt;master-port&gt;
+<span class="c-result">OK</span></pre>
+            </div>
+            <div class="timeline">
+              <div class="step">
+                <span class="num">1</span>
+                <div>
+                  <b>Replica 노드에서 REPLICAOF 실행</b>
+                  <p>
+                    복제본이 될 노드 B에 마스터 노드 A의 IP와 포트를 입력한다.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">2</span>
+                <div>
+                  <b>복제 연결 시작</b>
+                  <p>노드 B는 노드 A의 데이터를 받아오기 시작한다.</p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">3</span>
+                <div>
+                  <b>쓰기 요청은 Master로</b>
+                  <p>
+                    서비스 애플리케이션은 기본적으로 마스터 노드 A를 바라봐야
+                    한다. 모든 업데이트 커맨드는 A에서 실행된다.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">4</span>
+                <div>
+                  <b>Master 장애 시 연결 전환</b>
+                  <p>
+                    기본 복제만 사용하는 경우 Master 장애 시 자동 전환은
+                    일어나지 않는다. 자동 페일오버가 없다면 Replica를 새
+                    Master로 승격하고 애플리케이션 연결 설정도 변경해야 한다.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="note">
+              <strong>확장 구조</strong>마스터에 여러 복제본을 연결할 수 있고,
+              복제본 아래에 또 다른 복제본을 둘 수도 있다. 다만 한 복제 그룹의
+              최상위 write 노드는 항상 하나의 마스터다.
+            </div>
+          </section>
+          <section class="dark" id="failover">
+            <div class="kicker">04 · Failover</div>
+            <h2>Master 장애 시 페일오버는 별도 구성이 필요하다</h2>
+            <p class="lead">
+              Redis 기본 복제는 데이터를 Master에서 Replica로 복사하는 기능이다.
+              Master 장애를 감지하고 Replica를 자동 승격하는 기능까지 포함하지는
+              않는다. 자동 페일오버가 필요하면 Sentinel이나 Cluster를 함께
+              구성한다.
+            </p>
+            <div class="grid3">
+              <div class="card">
+                <b>수동 페일오버</b>
+                <p>
+                  운영자가 Replica에서 <code>REPLICAOF NO ONE</code>을 실행해 새
+                  Master로 승격한다. 이후 애플리케이션 접속 주소도 새 Master로
+                  변경해야 한다.
+                </p>
+              </div>
+              <div class="card">
+                <b>Redis Sentinel</b>
+                <p>
+                  Sentinel이 Master 상태를 감시하다가 장애를 감지하면 Replica
+                  하나를 새 Master로 승격하고, 다른 Replica들이 새 Master를
+                  바라보도록 조정한다.
+                </p>
+              </div>
+              <div class="card">
+                <b>Redis Cluster</b>
+                <p>
+                  데이터를 여러 Master에 나눠 저장하는 샤딩 구조다. 각 Master에
+                  Replica를 둘 수 있고, 장애 시 해당 Replica가 승격된다.
+                </p>
+              </div>
+            </div>
+            <div class="cmd">
+              <pre><span class="c-comment"># 수동으로 Replica를 Master로 승격</span>
+<span class="c-prompt">127.0.0.1:6379&gt;</span> REPLICAOF NO ONE
+<span class="c-result">OK</span></pre>
+            </div>
+          </section>
+          <section id="auth">
+            <div class="kicker">05 · Password</div>
+            <h2>패스워드가 있는 Master에 복제본 연결하기</h2>
+            <p class="lead">
+              마스터 노드에 <code>requirepass</code>가 설정되어 있다면, 복제본
+              노드에는 <code>masterauth</code>를 설정해야 한다.
+            </p>
+            <div class="compare">
+              <div class="panel">
+                <h4>Master</h4>
+                <div class="cmd">
+                  <pre><span class="c-prompt">127.0.0.1:6379&gt;</span> CONFIG SET requirepass mypasswd
+<span class="c-result">OK</span>
+<span class="c-prompt">127.0.0.1:6379&gt;</span> CONFIG REWRITE
+<span class="c-result">OK</span></pre>
+                </div>
+              </div>
+              <div class="panel">
+                <h4>Replica</h4>
+                <div class="cmd">
+                  <pre><span class="c-prompt">127.0.0.1:6379&gt;</span> CONFIG SET masterauth mypasswd
+<span class="c-result">OK</span>
+<span class="c-prompt">127.0.0.1:6379&gt;</span> CONFIG REWRITE
+<span class="c-result">OK</span></pre>
+                </div>
+              </div>
+            </div>
+            <div class="note warn">
+              <strong>주의</strong><code>CONFIG SET</code>은 실행 중인
+              인스턴스에 즉시 반영되지만 설정 파일까지 바꾸지는 않는다. 재시작
+              후에도 유지하려면 <code>CONFIG REWRITE</code>가 필요하다.
+            </div>
+          </section>
+          <section class="dark" id="mechanism">
+            <div class="kicker">05 · Full Resynchronization</div>
+            <h2>복제 메커니즘: 처음 연결될 때는 RDB 기반 전체 동기화</h2>
+            <p class="lead">
+              복제 연결은 자동으로 이뤄지지만 내부에서는 꽤 많은 일이 발생한다.
+              초기 연결에서는 마스터가 RDB 스냅숏을 만들고 복제본이 이를
+              로드한다.
+            </p>
+            <div class="replication-sketch">
+              <svg
+                aria-label="Redis full resynchronization flow"
+                role="img"
+                viewBox="0 0 980 520"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <marker
+                    id="arrowHead"
+                    markerHeight="10"
+                    markerWidth="10"
+                    orient="auto"
+                    refX="8"
+                    refY="5"
+                  >
+                    <path d="M0,0 L10,5 L0,10 z" fill="#7dd3fc" />
+                  </marker>
+                  <style>
+                    .dg-title {
+                      fill: #ffffff;
+                      font:
+                        900 20px Pretendard,
+                        sans-serif;
+                    }
+                    .dg-label {
+                      fill: #dbeafe;
+                      font:
+                        800 15px Pretendard,
+                        sans-serif;
+                    }
+                    .dg-small {
+                      fill: #cbd5e1;
+                      font:
+                        800 13px Pretendard,
+                        sans-serif;
+                    }
+                    .dg-line {
+                      stroke: #7dd3fc;
+                      stroke-width: 3;
+                      marker-end: url(#arrowHead);
+                    }
+                    .dg-muted {
+                      stroke: rgba(203, 213, 225, 0.42);
+                      stroke-width: 2;
+                    }
+                  </style>
+                </defs>
+
+                <rect
+                  fill="rgba(15, 23, 42, 0.45)"
+                  height="500"
+                  rx="22"
+                  width="960"
+                  x="10"
+                  y="10"
+                />
+
+                <text class="dg-title" x="185" y="54">A · Master</text>
+                <text class="dg-title" x="735" y="54">B · Replica</text>
+
+                <g transform="translate(170 78)">
+                  <rect
+                    fill="#ef4444"
+                    height="24"
+                    rx="6"
+                    width="108"
+                    x="0"
+                    y="0"
+                  />
+                  <rect
+                    fill="#dc2626"
+                    height="24"
+                    rx="6"
+                    width="108"
+                    x="0"
+                    y="22"
+                  />
+                  <rect
+                    fill="#b91c1c"
+                    height="24"
+                    rx="6"
+                    width="108"
+                    x="0"
+                    y="44"
+                  />
+                </g>
+                <g transform="translate(725 78)">
+                  <rect
+                    fill="#ef4444"
+                    height="24"
+                    rx="6"
+                    width="108"
+                    x="0"
+                    y="0"
+                  />
+                  <rect
+                    fill="#dc2626"
+                    height="24"
+                    rx="6"
+                    width="108"
+                    x="0"
+                    y="22"
+                  />
+                  <rect
+                    fill="#b91c1c"
+                    height="24"
+                    rx="6"
+                    width="108"
+                    x="0"
+                    y="44"
+                  />
+                </g>
+
+                <line class="dg-line" x1="715" x2="292" y1="116" y2="116" />
+                <text class="dg-label" x="405" y="98">
+                  (1) REPLICAOF &lt;IP&gt; &lt;PORT&gt;
+                </text>
+
+                <line class="dg-line" x1="195" x2="94" y1="160" y2="276" />
+                <text class="dg-label" x="42" y="248">(2) fork()</text>
+
+                <g transform="translate(52 292)">
+                  <rect
+                    fill="#0f172a"
+                    height="82"
+                    rx="8"
+                    stroke="#bae6fd"
+                    stroke-width="3"
+                    width="70"
+                  />
+                  <line class="dg-muted" x1="18" x2="52" y1="24" y2="24" />
+                  <line class="dg-muted" x1="18" x2="52" y1="40" y2="40" />
+                  <line class="dg-muted" x1="18" x2="52" y1="56" y2="56" />
+                </g>
+
+                <rect
+                  fill="rgba(71, 85, 105, 0.72)"
+                  height="58"
+                  rx="14"
+                  stroke="#7dd3fc"
+                  stroke-width="1.5"
+                  width="390"
+                  x="295"
+                  y="225"
+                />
+                <text class="dg-label" x="350" y="260">
+                  (3) RDB 생성 중 변경 커맨드 저장
+                </text>
+                <line class="dg-line" x1="225" x2="385" y1="148" y2="222" />
+
+                <line class="dg-line" x1="122" x2="720" y1="340" y2="340" />
+                <text class="dg-label" x="380" y="324">(4) RDB 파일 전달</text>
+
+                <g transform="translate(760 292)">
+                  <rect
+                    fill="#0f172a"
+                    height="82"
+                    rx="8"
+                    stroke="#bae6fd"
+                    stroke-width="3"
+                    width="70"
+                  />
+                  <line class="dg-muted" x1="18" x2="52" y1="24" y2="24" />
+                  <line class="dg-muted" x1="18" x2="52" y1="40" y2="40" />
+                  <line class="dg-muted" x1="18" x2="52" y1="56" y2="56" />
+                </g>
+                <line class="dg-line" x1="795" x2="795" y1="292" y2="162" />
+                <text class="dg-label" x="820" y="232">(5) RDB 파일 read</text>
+
+                <line class="dg-line" x1="685" x2="735" y1="254" y2="160" />
+                <text class="dg-label" x="700" y="255">
+                  (6) 버퍼링된 커맨드 전달
+                </text>
+              </svg>
+            </div>
+            <div class="timeline">
+              <div class="step">
+                <span class="num">1</span>
+                <div>
+                  <b>REPLICAOF로 복제 연결 시도</b>
+                  <p>복제본이 마스터에게 동기화를 요청한다.</p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">2</span>
+                <div>
+                  <b>Master가 fork 후 RDB 생성</b>
+                  <p>마스터는 자식 프로세스를 생성하고 RDB 스냅숏을 만든다.</p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">3</span>
+                <div>
+                  <b>복제 버퍼에 변경 작업 저장</b>
+                  <p>
+                    RDB 생성 중 마스터에서 수행된 변경 명령은 RESP 형태로 복제
+                    버퍼에 쌓인다.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">4</span>
+                <div>
+                  <b>RDB를 Replica로 전달</b>
+                  <p>RDB 파일 생성이 끝나면 복제본으로 전송한다.</p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">5</span>
+                <div>
+                  <b>Replica 기존 데이터 삭제 후 RDB 로드</b>
+                  <p>
+                    복제본은 기존 내용을 비우고 전달받은 RDB를 메모리에
+                    로드한다.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">6</span>
+                <div>
+                  <b>복제 버퍼 replay</b>
+                  <p>
+                    RDB 생성 동안 쌓인 변경 명령을 복제본에 전달해 최종 상태를
+                    맞춘다.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="note warn">
+              <strong>실무 포인트</strong>복제 연결은 단순 네트워크 연결이
+              아니다. fork, RDB 생성, 디스크 또는 소켓 전송, 복제본 로딩, 버퍼
+              replay가 필요하다. 그래서 대용량 Redis에 Replica를 붙이는 작업은
+              성능 영향이 생길 수 있는 작업으로 보고 트래픽이 적은 시간에
+              진행하거나, 모니터링과 장애 대응 담당자를 정해 두고 진행하는 것이
+              좋다.
+            </div>
+          </section>
+          <section id="diskless">
+            <div class="kicker">06 · Disk / Diskless</div>
+            <h2>디스크를 사용하는 복제와 Diskless 복제</h2>
+            <p class="lead">
+              Redis 7.0 이전에는 <code>repl-diskless-sync</code> 기본값이
+              <code>no</code>였지만, Redis 7.0 이후에는 기본값이
+              <code>yes</code>이다.
+            </p>
+            <div class="compare">
+              <div class="panel">
+                <h4>디스크를 사용하는 방식</h4>
+                <div class="flow">
+                  <div class="node">RDB 생성<small>Master Disk</small></div>
+                  <div class="arrow">→</div>
+                  <div class="node">Replica 전송<small>Network</small></div>
+                  <div class="arrow">→</div>
+                  <div class="node">
+                    Disk 저장 후 로드<small>Replica</small>
+                  </div>
+                </div>
+                <ul>
+                  <li>복제 속도가 디스크 I/O 처리량에 영향을 받는다.</li>
+                  <li>NAS 같은 원격 디스크를 사용하면 더 느려질 수 있다.</li>
+                  <li>하나의 RDB 파일을 여러 복제본에 전달하기 쉽다.</li>
+                </ul>
+              </div>
+              <div class="panel">
+                <h4>Diskless 방식</h4>
+                <div class="flow">
+                  <div class="node">RDB 생성<small>pipe</small></div>
+                  <div class="arrow">→</div>
+                  <div class="node">
+                    Socket Stream<small>Master → Replica</small>
+                  </div>
+                  <div class="arrow">→</div>
+                  <div class="node">
+                    Replica Disk 저장<small>then load</small>
+                  </div>
+                </div>
+                <ul>
+                  <li>
+                    마스터가 RDB를 디스크에 저장하지 않고 소켓으로 바로
+                    전송한다.
+                  </li>
+                  <li>
+                    디스크 I/O가 느리고 네트워크가 빠른 환경에서 유리하다.
+                  </li>
+                  <li>
+                    복제본은 안정성을 위해 받은 RDB를 디스크에 저장한 뒤
+                    로드한다.
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>항목</th>
+                  <th>Disk 기반</th>
+                  <th>Diskless</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>마스터 RDB 저장</td>
+                  <td>디스크에 저장</td>
+                  <td>디스크 저장 없이 소켓으로 전송</td>
+                </tr>
+                <tr>
+                  <td>병목</td>
+                  <td>디스크 I/O</td>
+                  <td>네트워크 / 복제본 처리</td>
+                </tr>
+                <tr>
+                  <td>동시 Replica 연결</td>
+                  <td>기존 RDB를 여러 복제본에 전달 가능</td>
+                  <td>하나의 복제 연결 중 다른 복제본은 대기할 수 있음</td>
+                </tr>
+                <tr>
+                  <td>관련 옵션</td>
+                  <td><code>repl-diskless-sync no</code></td>
+                  <td>
+                    <code>repl-diskless-sync yes</code>,
+                    <code>repl-diskless-sync-delay</code>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="note">
+              <strong>repl-diskless-sync-delay</strong>Diskless 복제에서 새로운
+              복제 연결이 들어오면 기본 5초 대기한다. 이 시간 안에 다른 복제본도
+              연결되면 여러 복제본에 한 번에 RDB stream을 보낼 수 있다.
+            </div>
+            <div class="cmd">
+              <pre><span class="c-comment"># 기본값 예시</span>
+repl-diskless-sync-delay 5</pre>
+            </div>
+          </section>
+          <section class="dark" id="async">
+            <div class="kicker">07 · Asynchronous Replication</div>
+            <h2>정상 복제 상태에서는 비동기 방식으로 동작한다</h2>
+            <p class="lead">
+              Redis는 마스터에서 커맨드를 처리한 뒤 복제본 반영 완료를 기다리지
+              않고 클라이언트에게 응답한다. 그래서 복제 구조에서도 짧은 지연
+              시간과 높은 성능을 유지한다.
+            </p>
+            <div class="flow">
+              <div class="node">Client<small>SET user:1</small></div>
+              <div class="arrow">→</div>
+              <div class="node">Master 저장<small>command 처리</small></div>
+              <div class="arrow">→</div>
+              <div class="node">Client OK<small>먼저 응답</small></div>
+              <div class="arrow">⇢</div>
+              <div class="node">Replica 전파<small>비동기</small></div>
+            </div>
+            <div class="note danger">
+              <strong>유실 가능성</strong>마스터가 클라이언트에게 OK를 보낸
+              직후, 복제본으로 명령이 전달되기 전에 마스터가 비정상 종료되면 그
+              변경 데이터는 복제본에 없을 수 있다.
+            </div>
+            <div class="compare">
+              <div class="panel">
+                <h4>장점</h4>
+                <p>
+                  복제본 응답을 매번 기다리지 않기 때문에 write latency가 낮고
+                  처리량이 높다.
+                </p>
+              </div>
+              <div class="panel">
+                <h4>단점</h4>
+                <p>
+                  마스터는 쓰기를 처리하자마자 OK를 반환하고, 그 변경 내용은
+                  잠시 뒤 복제본으로 전달된다. 이 짧은 시간 동안 복제본을 읽으면
+                  방금 쓴 값이 아직 안 보일 수 있다.
+                </p>
+              </div>
+            </div>
+          </section>
+          <section id="replid">
+            <div class="kicker">08 · Replication ID &amp; Offset</div>
+            <h2>
+              복제 ID와 오프셋은 “같은 데이터 계보에서 어디까지 왔는가”를
+              나타낸다
+            </h2>
+            <p class="lead">
+              모든 Redis 인스턴스는 복제 기능을 사용하지 않아도 replication ID를
+              가진다. 복제 ID는 오프셋과 쌍으로 존재하며, 데이터가 수정되는
+              커맨드가 수행될 때마다 오프셋이 증가한다.
+            </p>
+            <div class="offset-board">
+              <div class="offset">
+                <b>Master</b>
+                <div class="bar"><span style="width: 100%"></span></div>
+                <small>replid = aaa · offset 915</small>
+              </div>
+              <div class="offset">
+                <b>Replica A</b>
+                <div class="bar"><span style="width: 82%"></span></div>
+                <small>replid = aaa · offset 901</small>
+              </div>
+              <div class="offset">
+                <b>Replica B</b>
+                <div class="bar"><span style="width: 100%"></span></div>
+                <small>replid = aaa · offset 915</small>
+              </div>
+            </div>
+            <div class="note">
+              <strong>해석</strong>복제 ID가 같고 오프셋도 같으면 두 노드는 같은
+              데이터 상태라고 볼 수 있다. 위 예시에서 Replica B는 마스터와
+              동일하지만, Replica A는 offset 901까지만 받아 아직 일부 변경을
+              받지 못했다.
+            </div>
+            <details class="box" open="">
+              <summary>
+                INFO REPLICATION으로 확인하기<span class="tag"
+                  >role · offset · lag</span
+                >
+              </summary>
+              <div class="box__body">
+                <h4>복제본 연결 전 Master</h4>
+                <div class="cmd">
+                  <pre><span class="c-prompt">&gt;</span> INFO Replication
+<span class="c-result">role:master
+connected_slaves:0
+master_replid:e3b06d3eba522894a240a8a9ce3e808dd5ccfd7a
+master_repl_offset:709
+repl_backlog_size:67108864</span></pre>
+                </div>
+                <h4>복제본 연결 후 Master</h4>
+                <div class="cmd">
+                  <pre><span class="c-result">role:master
+connected_slaves:1
+slave0:ip=127.0.0.1,port=6002,state=online,offset=709,lag=0
+master_repl_offset:807</span></pre>
+                </div>
+                <h4>Replica</h4>
+                <div class="cmd">
+                  <pre><span class="c-result">role:slave
+master_host:127.0.0.1
+master_port:6001
+master_link_status:up
+slave_repl_offset:723
+slave_read_only:1
+master_replid:e3b06d3eba522894a240a8a9ce3e808dd5ccfd7a</span></pre>
+                </div>
+              </div>
+            </details>
+          </section>
+          <section class="dark" id="partial">
+            <div class="kicker">09 · Partial Resynchronization</div>
+            <h2>부분 재동기화: 매번 RDB 전체를 다시 받지 않기 위한 장치</h2>
+            <p class="lead">
+              네트워크가 잠깐 끊길 때마다 전체 재동기화를 수행하면 리소스 낭비가
+              크다. 그래서 Redis는 복제 백로그 버퍼와 PSYNC를 이용해 부분
+              재동기화를 시도한다.
+            </p>
+            <div class="timeline">
+              <div class="step">
+                <span class="num">1</span>
+                <div>
+                  <b>복제 연결 끊김</b>
+                  <p>
+                    Replica는 마지막으로 받은 replication ID와 offset을
+                    기억한다.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">2</span>
+                <div>
+                  <b>Master는 backlog에 명령 저장</b>
+                  <p>
+                    연결이 끊긴 동안에도 최근 변경 명령을 복제 백로그 버퍼에
+                    보관한다.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">3</span>
+                <div>
+                  <b>Replica가 PSYNC 요청</b>
+                  <p>자신의 replication ID와 offset을 마스터에 전달한다.</p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">4</span>
+                <div>
+                  <b>Backlog에 필요한 데이터가 있으면 Partial Resync</b>
+                  <p>RDB 전체 전송 없이 누락된 명령만 전달한다.</p>
+                </div>
+              </div>
+            </div>
+            <div class="flow">
+              <div class="node">Replica offset 900</div>
+              <div class="arrow">→</div>
+              <div class="node">Backlog 901~915 보유</div>
+              <div class="arrow">→</div>
+              <div class="node">901~915만 전송</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>상황</th>
+                  <th>동작</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>replication ID가 같고 backlog에 필요한 offset이 있음</td>
+                  <td>부분 재동기화 수행</td>
+                </tr>
+                <tr>
+                  <td>backlog에 필요한 데이터가 없음</td>
+                  <td>전체 재동기화 수행</td>
+                </tr>
+                <tr>
+                  <td>복제본이 보낸 replication ID가 현재 마스터와 불일치</td>
+                  <td>전체 재동기화 수행</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="cmd">
+              <pre><span class="c-comment"># 복제 백로그 크기</span>
+repl-backlog-size 1mb
+
+<span class="c-comment"># 복제본이 모두 끊긴 후 백로그를 유지할 시간</span>
+repl-backlog-ttl 3600</pre>
+            </div>
+            <div class="note warn">
+              <strong>실무 포인트</strong>백로그가 클수록 부분 재동기화가 가능한
+              시간이 길어진다. 네트워크가 불안정하거나 복제본이 자주 재연결되는
+              환경에서는 backlog 크기가 중요하다.
+            </div>
+          </section>
+          <section id="secondary">
+            <div class="kicker">10 · Secondary Replication ID</div>
+            <h2>Secondary 복제 ID는 장애 전환 후 부분 재동기화를 돕는다</h2>
+            <p class="lead">
+              Replica가 Master로 승격되면 새로운 replication ID를 갖는다. 이때
+              승격 전 사용하던 이전 Master의 replication ID를 secondary
+              replication ID로 잠시 보관해, 기존 Replica들이 전체 재동기화 대신
+              부분 재동기화를 시도할 수 있게 한다.
+            </p>
+            <div class="flow">
+              <div class="node">기존 Master<small>replid = aaa</small></div>
+              <div class="arrow">×</div>
+              <div class="node">Replica 승격<small>new replid = bbb</small></div>
+              <div class="arrow">→</div>
+              <div class="node">secondary replid<small>old replid = aaa</small></div>
+            </div>
+            <div class="grid2">
+              <div class="card">
+                <b>왜 필요한가?</b>
+                <p>
+                  장애 전환 직후 다른 Replica들은 아직 이전 Master의 replid와
+                  offset을 기억하고 있다. 새 Master가 이전 replid 정보를
+                  보관하고 있으면 “같은 데이터 계보”로 판단해 누락분만 받을 수
+                  있다.
+                </p>
+              </div>
+              <div class="card">
+                <b>없다면?</b>
+                <p>
+                  replid가 완전히 달라진 것으로 판단되어 부분 재동기화를 하지
+                  못하고, RDB를 다시 받는 전체 재동기화가 발생할 가능성이 커진다.
+                </p>
+              </div>
+            </div>
+            <div class="cmd">
+              <pre><span class="c-comment"># INFO Replication에서 볼 수 있는 값</span>
+master_replid:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+master_replid2:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+second_repl_offset:915</pre>
+            </div>
+            <div class="note">
+              <strong>발표 포인트</strong>Primary replid는 현재 Master의 새
+              복제 ID이고, Secondary replid는 승격 전의 이전 복제 ID다. 장애
+              전환 직후 Replica들이 불필요하게 전체 동기화를 다시 하지 않도록
+              돕는 안전장치로 보면 된다.
+            </div>
+          </section>
+          <section class="dark" id="readonly">
+            <div class="kicker">11 · Read Only Replica</div>
+            <h2>복제본은 기본적으로 읽기 전용으로 동작한다</h2>
+            <p class="lead">
+              Redis 2.6 이후 복제본은 기본적으로 읽기 전용이다. 클라이언트가
+              복제본에 연결해도 데이터를 읽는 커맨드만 수행할 수 있고,
+              <code>SET</code> 같은 변경 명령은 수행할 수 없다.
+            </p>
+            <div class="cmd">
+              <pre><span class="c-comment"># 관련 옵션</span>
+replica-read-only yes</pre>
+            </div>
+            <div class="grid2">
+              <div class="card">
+                <b>읽기 전용이 필요한 이유</b>
+                <p>
+                  복제본이 임의로 데이터를 변경하면 마스터와 데이터셋이
+                  달라진다. Redis 복제 구조에서는 마스터 데이터가 기준이다.
+                </p>
+              </div>
+              <div class="card">
+                <b>쓰기 요청의 기준</b>
+                <p>
+                  모든 데이터 입력은 마스터 노드에서 처리한다. 복제본은
+                  마스터에서 변경된 데이터를 그대로 받아온다.
+                </p>
+              </div>
+            </div>
+            <div class="note warn">
+              <strong>옵션을 끄면?</strong><code>replica-read-only no</code>로
+              복제본에 직접 write할 수는 있지만, 전체 재동기화가 발생하면
+              복제본에서 직접 쓴 데이터는 사라질 수 있다.
+            </div>
+            <div class="note danger">
+              <strong>중요</strong>복제본에 직접 쓴 데이터는 로컬에서만
+              유지된다. 해당 복제본 아래에 또 다른 복제본이 있더라도 그 로컬
+              변경은 하위 복제본으로 전파되지 않는다. 하위 복제본은 최상위
+              마스터의 복제 프로토콜을 전달받는다.
+            </div>
+          </section>
+          <section id="stale">
+            <div class="kicker">12 · Stale Data</div>
+            <h2>
+              유효하지 않은 복제 데이터: 마스터와 복제본이 일치하지 않는 순간
+            </h2>
+            <p class="lead">
+              복제본이 마스터와 연결이 끊겼거나, 복제 연결이 시작됐지만 아직
+              완료되지 않았다면 복제본의 데이터는 유효하지 않을 수 있다.
+            </p>
+            <div class="flow">
+              <div class="node">Master Write<small>최신 데이터</small></div>
+              <div class="arrow">→</div>
+              <div class="node">Network Lag<small>전파 지연</small></div>
+              <div class="arrow">→</div>
+              <div class="node">Replica Read<small>이전 데이터</small></div>
+            </div>
+            <h3>replica-serve-stale-data</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>설정</th>
+                  <th>동작</th>
+                  <th>의미</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>yes</code> 기본값</td>
+                  <td>
+                    데이터가 유효하지 않다고 판단되어도 읽기 요청에 응답한다.
+                  </td>
+                  <td>가용성을 우선한다.</td>
+                </tr>
+                <tr>
+                  <td><code>no</code></td>
+                  <td>
+                    <code>INFO</code>, <code>CONFIG</code>,
+                    <code>PING</code> 등을 제외한 대부분의 요청에 오류를
+                    반환한다.
+                  </td>
+                  <td>잘못된 데이터 반환을 피한다.</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="note warn">
+              <strong>실무 예시</strong>회원가입 직후 읽기 요청을 Replica로
+              보내면 아직 복제되지 않아 “사용자 없음”처럼 보일 수 있다. 이런
+              문제를 read-after-write consistency 문제라고 볼 수 있다.
+            </div>
+          </section>
+          <section class="dark" id="nobackup">
+            <div class="kicker">13 · Replication without Backup</div>
+            <h2>백업 없이 복제만 사용할 때 발생할 수 있는 위험</h2>
+            <p class="lead">
+              복제를 사용하더라도 마스터와 복제본에서 백업 기능을 사용하는 것이
+              권장된다. 백업을 사용하지 않는다면 마스터의 자동 재시작 설정이
+              오히려 데이터를 지우는 방향으로 동작할 수 있다.
+            </p>
+            <div class="backup-sketch">
+              <div class="backup-row">
+                <div class="redis-node">
+                  <b>Master</b>
+                  <div class="redis-logo">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <div class="data-badge">data</div>
+                </div>
+                <div class="sketch-arrow">데이터 복제 →</div>
+                <div class="redis-node">
+                  <b>Replica</b>
+                  <div class="redis-logo">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <div class="data-badge">data</div>
+                </div>
+              </div>
+              <div class="backup-row">
+                <div class="redis-node">
+                  <b>Master 재시작</b>
+                  <div class="redis-logo">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <div class="sketch-card">메모리 내용 초기화</div>
+                </div>
+                <div class="sketch-arrow"></div>
+                <div class="redis-node">
+                  <b>Replica</b>
+                  <div class="redis-logo">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <div class="data-badge">data</div>
+                </div>
+              </div>
+              <div class="backup-row">
+                <div class="redis-node">
+                  <b>빈 Master</b>
+                  <div class="redis-logo">
+                    <span></span><span></span><span></span>
+                  </div>
+                </div>
+                <div class="sketch-arrow">빈 RDB 전달 →</div>
+                <div class="redis-node">
+                  <b>Replica</b>
+                  <div class="redis-logo">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <div class="sketch-card">데이터가 사라질 수 있음</div>
+                </div>
+              </div>
+            </div>
+            <div class="timeline">
+              <div class="step">
+                <span class="num">1</span>
+                <div>
+                  <b>백업 없는 Master와 Replica 운영</b>
+                  <p>두 노드는 메모리에만 데이터를 가지고 있다.</p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">2</span>
+                <div>
+                  <b>Master 장애 후 자동 재시작</b>
+                  <p>
+                    백업 파일이 없으면 Redis 프로세스가 재시작되면서 메모리
+                    내용은 초기화된다.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">3</span>
+                <div>
+                  <b>Replica가 Master에 다시 연결</b>
+                  <p>
+                    Replica에는 데이터가 남아 있지만 마스터와 복제 연결을
+                    시도한다.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="num">4</span>
+                <div>
+                  <b>빈 데이터셋 전파</b>
+                  <p>
+                    재시작된 Master가 빈 데이터셋을 Replica로 전달하면,
+                    Replica에 남아 있던 데이터도 사라질 수 있다.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="note danger">
+              <strong>결론</strong>데이터 안정성을 위해 복제 기능을 사용할 경우
+              백업 기능도 함께 사용하는 것이 좋다. 백업을 사용하지 않는다면
+              마스터 인스턴스의 자동 재시작은 활성화하지 않는 것을 권장한다.
+            </div>
+            <div class="compare">
+              <div class="panel">
+                <h4>백업 기능 사용</h4>
+                <p>
+                  마스터가 재시작될 때 RDB/AOF 파일을 읽어 데이터를 복원하고,
+                  복원된 데이터가 복제본에 전달된다.
+                </p>
+              </div>
+              <div class="panel">
+                <h4>백업 없이 자동 재시작 미사용</h4>
+                <p>
+                  장애 후 바로 빈 Master를 띄우지 않고, 애플리케이션 연결을
+                  데이터가 남아 있는 Replica로 변경하거나 Replica의 데이터를
+                  백업받아 Master에 복원한 뒤 재시작한다.
+                </p>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>
