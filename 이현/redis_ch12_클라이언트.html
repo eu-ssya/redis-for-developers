@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>개발자를 위한 레디스 12장 · 클라이언트 관리</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
+  <style>
+    :root{
+      --bg:#111827; --paper:#fffaf7; --paper2:#fff3ef; --ink:#182033; --muted:#64748b;
+      --red:#ff3b30; --red2:#ff6b5f; --coral:#ff8a7a; --yellow:#ffcf5a; --green:#22c55e; --blue:#38bdf8;
+      --line:rgba(24,32,51,.12); --dark:#171a2b; --card:#ffffff; --shadow:0 22px 60px rgba(24,32,51,.14);
+      --term:#0b1020; --termText:#dbeafe;
+    }
+    *{box-sizing:border-box;margin:0;padding:0} html{scroll-behavior:smooth} body{font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:linear-gradient(135deg,#fff8f5 0%,#fff 45%,#f7fbff 100%);color:var(--ink);font-size:15px;line-height:1.72;-webkit-font-smoothing:antialiased;overflow-x:hidden} code,pre{font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace}.deck{display:grid;grid-template-columns:310px minmax(0,1fr);min-height:100vh}.toc{position:sticky;top:0;height:100vh;padding:24px 18px;border-right:1px solid rgba(255,59,48,.18);background:rgba(255,250,247,.88);backdrop-filter:blur(18px);overflow-y:auto}.brand{padding:22px 18px 24px;border:1px solid rgba(255,59,48,.22);border-radius:22px;background:linear-gradient(135deg,#fff,#fff0ec);box-shadow:0 14px 36px rgba(255,59,48,.08);margin-bottom:18px}.brand small{display:block;color:var(--red);font-weight:950;letter-spacing:.22em;font-size:11px;white-space:nowrap}.brand b{display:block;margin-top:10px;color:#111827;font-size:27px;line-height:1.18;letter-spacing:-.055em;white-space:nowrap}.toc a{display:flex;gap:10px;align-items:center;margin:4px 0;padding:10px 9px;border-radius:14px;text-decoration:none;color:#3b4252;font-size:12px;font-weight:900;line-height:1.3}.toc a:hover{background:#ffe8e3;color:#111827;transform:translateX(2px)}.toc small{flex:0 0 auto;display:inline-grid;place-items:center;min-width:38px;height:24px;padding:0 7px;border-radius:999px;background:#ffe0dc;color:var(--red);font-size:11px;font-weight:950}.content{min-width:0}.hero{margin:28px 34px 0;padding:58px 54px;border-radius:34px;background:radial-gradient(circle at 80% 20%,rgba(255,59,48,.16),transparent 38%),linear-gradient(135deg,#171a2b,#0f172a);color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow)}.hero:before{content:"";position:absolute;right:-80px;bottom:-100px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(255,59,48,.34),transparent 65%)}.eyebrow{position:relative;z-index:1;display:inline-flex;align-items:center;gap:10px;color:#ffb4aa;font-size:12px;font-weight:950;letter-spacing:.22em;text-transform:uppercase}.eyebrow:before{content:"";width:34px;height:3px;background:var(--red);border-radius:999px}.hero h1{position:relative;z-index:1;margin-top:18px;max-width:990px;font-size:clamp(2.5rem,4vw,4.2rem);font-weight:950;letter-spacing:-.06em;line-height:.98}.hero p{position:relative;z-index:1;max-width:880px;margin-top:22px;color:#cbd5e1;font-size:16px;font-weight:650}.metric-grid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:34px}.metric{padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:20px;background:rgba(255,255,255,.07)}.metric b{display:block;color:#fff;font-size:20px;font-weight:950}.metric span{display:block;margin-top:4px;color:#aebed1;font-size:13px;font-weight:850}.main{max-width:1220px;padding:34px 34px 110px}section{margin-top:28px;padding:36px 42px 40px;border:1px solid var(--line);border-radius:28px;background:rgba(255,255,255,.94);box-shadow:0 18px 52px rgba(24,32,51,.08)}section.dark{background:linear-gradient(135deg,#171a2b,#0f172a);color:#e5e7eb}.kicker{color:var(--red);font-size:12px;font-weight:950;letter-spacing:.2em;text-transform:uppercase}.dark .kicker{color:#ffb4aa}h2{margin-top:6px;color:#111827;font-size:clamp(1.55rem,2.4vw,2.35rem);font-weight:950;letter-spacing:-.045em;line-height:1.12}.dark h2{color:#fff}h3{margin:28px 0 10px;font-size:19px;letter-spacing:-.025em;color:#111827}.dark h3{color:#fff}h4{margin:18px 0 8px;font-size:15px;color:#111827}.dark h4{color:#fff}.lead{margin-top:12px;color:#536174;font-size:15px;font-weight:500}.dark .lead{color:#cbd5e1}p+p{margin-top:8px}ul{margin:10px 0 0 22px}li{margin:5px 0}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:18px}.card{padding:20px;border:1px solid #e7dcd8;border-radius:22px;background:#fff;box-shadow:0 8px 24px rgba(24,32,51,.05)}.dark .card{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12)}.card b{display:block;margin-bottom:8px;color:#111827;font-size:15px;font-weight:950}.dark .card b{color:#fff}.card p,.card li{color:#5f6b7a;font-size:13.5px}.dark .card p,.dark .card li{color:#cbd5e1}.note{margin-top:18px;padding:17px 19px;border-radius:18px;border:1px solid #ffd4cc;background:#fff3ef;color:#5b3a35;font-size:13.5px}.note strong{display:block;margin-bottom:4px;color:#111827}.dark .note{background:rgba(255,59,48,.12);border-color:rgba(255,107,95,.3);color:#ffd8d2}.dark .note strong{color:#fff}.note.warn{border-color:#ffe0a3;background:#fff8e5;color:#6b4a00}.note.danger{border-color:#ffb8b2;background:#fff0ef;color:#8f1d14}.flow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:20px;padding:20px;border:1px solid #eadbd7;border-radius:22px;background:linear-gradient(135deg,#fff,#fff7f5)}.dark .flow{border-color:rgba(255,255,255,.13);background:rgba(255,255,255,.05)}.node{min-width:138px;padding:15px 17px;border-radius:18px;background:#fff;border:1px solid #e5d9d5;text-align:center;font-weight:950;box-shadow:0 8px 24px rgba(24,32,51,.05)}.dark .node{background:#111827;border-color:rgba(255,255,255,.15);color:#fff}.node small{display:block;margin-top:3px;color:#7b8493;font-size:12px;font-weight:850}.dark .node small{color:#94a3b8}.arrow{font-weight:950;color:var(--red);font-size:28px}.dashboard{display:grid;grid-template-columns:1.05fr .95fr;gap:22px;margin-top:24px}.panel{padding:22px;border-radius:24px;background:#fff;border:1px solid #e8ddda;box-shadow:0 10px 28px rgba(24,32,51,.06)}.dark .panel{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.13)}.panel h4{margin-top:0}.bar{height:14px;background:#f0e3df;border-radius:999px;overflow:hidden;margin-top:10px}.bar span{display:block;height:100%;background:linear-gradient(90deg,var(--red),var(--coral));border-radius:999px}.bar.green span{background:linear-gradient(90deg,#22c55e,#86efac)}.bar.yellow span{background:linear-gradient(90deg,#f59e0b,#fde68a)}.cmd{margin:15px 0;border-radius:18px;overflow:hidden;background:var(--term);border:1px solid rgba(15,23,42,.9)}.cmd pre{padding:18px 20px;color:var(--termText);font-size:12.8px;line-height:1.6;white-space:pre-wrap;overflow-x:auto}.comment{color:#94a3b8}.ok{color:#86efac}.warnText{color:#fde68a}table{width:100%;border-collapse:collapse;margin-top:18px;border-radius:18px;overflow:hidden;background:#fff;border:1px solid #e5d9d5;font-size:13.3px}.dark table{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.14)}th,td{padding:15px;border-bottom:1px solid #eee2df;text-align:left;vertical-align:top}.dark th,.dark td{border-bottom-color:rgba(255,255,255,.1)}th{background:#fff0ec;color:#111827;font-size:12px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}.dark th{background:rgba(255,59,48,.18);color:#fff}tr:last-child td{border-bottom:0}.badge{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:#ffe0dc;color:var(--red);font-size:12px;font-weight:950}.big-number{font-size:clamp(3rem,6vw,6.8rem);font-weight:950;letter-spacing:-.07em;line-height:.95;color:var(--red)}.split{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}.vs{display:grid;grid-template-columns:1fr auto 1fr;gap:18px;align-items:stretch;margin-top:20px}.vsmark{display:grid;place-items:center;font-size:20px;font-weight:950;color:var(--red)}.client-list{display:grid;gap:10px;margin-top:14px}.client-row{display:grid;grid-template-columns:1fr 95px;gap:10px;align-items:center}.client-row b{font-size:15px}.pill{display:inline-flex;justify-content:center;padding:6px 10px;border-radius:999px;background:#fff0ec;color:#dd2c23;font-size:12px;font-weight:950}.callout{padding:28px;border-radius:26px;background:linear-gradient(135deg,#ff3b30,#ff8a7a);color:#fff;margin-top:20px}.callout b{display:block;font-size:30px;line-height:1.2}.callout p{margin-top:8px;color:#ffe9e6}.tiny{font-size:14px;color:#7b8493}.dark .tiny{color:#aab4c3}.to-top{position:fixed;right:24px;bottom:24px;z-index:20;display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 16px;border-radius:999px;background:var(--red);color:white;text-decoration:none;font-weight:950;box-shadow:0 14px 28px rgba(255,59,48,.28)}
+    @media(max-width:1180px){.deck{display:block}.toc{display:none}.hero{margin:18px}.main{padding:22px 18px 90px}.dashboard,.grid2,.grid3,.split,.vs,.metric-grid{grid-template-columns:1fr}.vsmark{padding:6px}.hero,section{padding-left:24px;padding-right:24px}.hero h1{font-size:3rem}}
+  </style>
+</head>
+<body>
+<a class="to-top" href="#top">↑ TOP</a>
+<div class="deck">
+  <nav class="toc">
+    <div class="brand"><small>REDIS CHAPTER 12</small><b>클라이언트 관리</b></div>
+    <a href="#intro"><small>00</small>이번 장의 흐름</a>
+    <a href="#handling"><small>01</small>클라이언트 핸들링</a>
+    <a href="#eventloop"><small>01-1</small>멀티플렉싱과 논블로킹 I/O</a>
+    <a href="#tcp"><small>01-2</small>TCP_NODELAY와 복제 설정</a>
+    <a href="#maxclients"><small>01-3</small>maxclients</a>
+    <a href="#buffer"><small>02</small>클라이언트 버퍼 제한</a>
+    <a href="#pubsub"><small>02-1</small>Pub/Sub과 Query Buffer</a>
+    <a href="#eviction"><small>03</small>클라이언트 이빅션</a>
+    <a href="#timeout"><small>04</small>Timeout과 TCP Keepalive</a>
+    <a href="#pipeline"><small>05</small>파이프라이닝</a>
+    <a href="#pipeline-fast"><small>05-1</small>왜 빨라지는가</a>
+    <a href="#pipeline-warn"><small>05-2</small>파이프라인 주의점</a>
+    <a href="#caching"><small>06</small>클라이언트 사이드 캐싱</a>
+    <a href="#tracking"><small>06-1</small>Tracking 모드</a>
+    <a href="#summary"><small>07</small>최종 정리</a>
+  </nav>
+
+  <div class="content">
+    <header class="hero" id="top">
+      <div class="eyebrow">Redis Control Center</div>
+      <h1>클라이언트 관리</h1>
+      <p>레디스가 클라이언트 요청을 어떻게 처리하고, 연결·버퍼·메모리·네트워크 비용을 어떻게 관리하는지 정리한다.</p>
+      <div class="metric-grid">
+        <div class="metric"><b>Client Handling</b><span>연결 처리와 이벤트 루프</span></div>
+        <div class="metric"><b>Buffer / Eviction</b><span>클라이언트 메모리 보호</span></div>
+        <div class="metric"><b>Pipelining</b><span>RTT와 시스템 콜 감소</span></div>
+        <div class="metric"><b>Client Cache</b><span>Redis 접근 자체를 줄이기</span></div>
+      </div>
+    </header>
+
+    <main class="main">
+      <section id="intro">
+        <div class="kicker">00 · Overview</div>
+        <h2>이번 장에서 다루는 것</h2>
+        <p class="lead">12장은 레디스가 클라이언트 요청을 어떻게 처리하는지, 그리고 클라이언트 연결을 어떻게 관리하는지를 다룬다. 여기에 연결 성능을 향상시키기 위한 파이프라이닝과 클라이언트 사이드 캐싱까지 이어진다.</p>
+        <div class="flow">
+          <div class="node">Client 연결<small>TCP / Unix Socket</small></div><div class="arrow">→</div>
+          <div class="node">Event Loop<small>Multiplexing</small></div><div class="arrow">→</div>
+          <div class="node">Buffer 관리<small>Output / Query</small></div><div class="arrow">→</div>
+          <div class="node">성능 최적화<small>Pipeline / Cache</small></div>
+        </div>
+      </section>
+
+      <section class="dark" id="handling">
+        <div class="kicker">01 · Client Handling</div>
+        <h2>레디스는 TCP 포트 또는 Unix Socket으로 클라이언트 연결을 받는다</h2>
+        <p class="lead">일반적인 서비스 환경에서는 TCP 포트를 사용한다. 같은 서버 내부에서 통신하는 경우에는 설정 파일에서 Unix Socket 관련 매개변수를 설정해 원하는 경로에 소켓 파일을 생성하고 권한을 지정할 수 있다.</p>
+        <div class="grid2">
+          <div class="card"><b>TCP Port</b><p>대부분의 애플리케이션이 Redis에 연결할 때 사용하는 방식이다. 서버 간 네트워크 통신에 적합하다.</p></div>
+          <div class="card"><b>Unix Domain Socket</b><p>동일 머신 내부 프로세스 간 통신에 사용할 수 있다. 설정을 통해 소켓 파일 경로와 권한을 지정한다.</p></div>
+        </div>
+        <div class="flow">
+          <div class="node">Client A</div><div class="node">Client B</div><div class="node">Client C</div><div class="arrow">→</div><div class="node">Redis Server<small>하나의 이벤트 루프</small></div>
+        </div>
+      </section>
+
+      <section id="eventloop">
+        <div class="kicker">01-1 · Multiplexing & Non Blocking I/O</div>
+        <h2>하나의 스레드가 여러 소켓을 감시한다</h2>
+        <p class="lead">레디스는 멀티플렉싱 방식을 사용한다. 하나의 통신 채널을 통해 여러 데이터 스트림을 처리할 수 있고, 하나의 스레드에서 여러 소켓을 감시하면서 이벤트 발생 여부를 계속 확인한다.</p>
+        <div class="grid3">
+          <div class="card"><b>여러 소켓 감시</b><p>읽기 가능한 파일 이벤트가 발생하면 해당 클라이언트에서 전송한 쿼리를 수집하고 처리한다.</p></div>
+          <div class="card"><b>블로킹 회피</b><p>많은 클라이언트 요청을 동시에 처리할 때 특정 클라이언트 때문에 전체가 멈추는 문제를 줄인다.</p></div>
+          <div class="card"><b>효율적인 다중 클라이언트 지원</b><p>스레드마다 클라이언트를 할당하지 않아도 높은 동시성을 처리할 수 있다.</p></div>
+        </div>
+        <h3>논블로킹 I/O</h3>
+        <p>논블로킹 I/O는 I/O 작업이 완료될 때까지 기다리지 않고 다른 작업을 처리하는 방식이다. 그래서 레디스는 클라이언트 요청을 비동기적으로 처리하며 다수의 요청을 동시에 처리할 수 있다.</p>
+        <div class="flow"><div class="node">Client A<small>I/O 대기</small></div><div class="arrow">↘</div><div class="node">Client B 처리</div><div class="arrow">→</div><div class="node">Client C 처리</div></div>
+      </section>
+
+      <section id="tcp">
+        <div class="kicker">01-2 · TCP_NODELAY</div>
+        <h2>작은 데이터도 지연 없이 보내기 위해 TCP_NODELAY를 사용한다</h2>
+        <p class="lead">레디스는 클라이언트 커넥션을 생성할 때 TCP_NODELAY 옵션을 사용한다. 소켓은 작은 데이터라도 버퍼링하지 않고 가능한 한 빨리 패킷으로 전송하려고 시도한다.</p>
+        <div class="split">
+          <div class="panel"><h4>사용 이유</h4><p>작은 데이터 조각을 실시간으로 전송해야 하는 경우에 유리하다. 클라이언트 연결 지연을 최소화할 수 있다.</p></div>
+          <div class="panel"><h4>트레이드오프</h4><p>지연은 줄어들지만 더 많은 패킷이 발생할 수 있어 네트워크 대역폭 사용량은 늘어날 수 있다.</p></div>
+        </div>
+        <h3>복제 연결에서는 <code>repl-disable-tcp-nodelay</code>로 제어한다</h3>
+        <div class="cmd"><pre><span class="comment"># 기본값: 지연 시간 최소화</span>
+repl-disable-tcp-nodelay no</pre></div>
+        <table>
+          <thead><tr><th>설정</th><th>동작</th><th>장점</th><th>단점</th></tr></thead>
+          <tbody>
+            <tr><td><code>no</code></td><td>마스터와 복제본 간 데이터 지연을 최소화</td><td>복제본에서 데이터를 더 빨리 확인 가능</td><td>복제를 위해 더 많은 대역폭 사용</td></tr>
+            <tr><td><code>yes</code></td><td>복제본에 데이터를 전송할 때 더 작은 수의 패킷과 대역폭 사용</td><td>대역폭 절약</td><td>최대 약 40ms 지연 발생 가능</td></tr>
+          </tbody>
+        </table>
+        <div class="note warn"><strong>실무 포인트</strong>레디스는 지연 시간을 최소화하기 위해 기본값을 <code>no</code>로 둔다. 다만 대규모 트래픽이 있거나 마스터와 복제본의 거리가 멀다면 <code>yes</code>로 변경하는 것이 도움이 될 수 있다.</div>
+      </section>
+
+      <section class="dark" id="maxclients">
+        <div class="kicker">01-3 · maxclients</div>
+        <h2>연결 수가 maxclients에 도달하면 새로운 접속을 거부한다</h2>
+        <p class="lead">클라이언트가 초기화되면 레디스는 현재 클라이언트 수와 <code>maxclients</code> 설정값을 비교한다. 설정값에 도달하면 새로운 클라이언트 접속을 거부한다.</p>
+        <div class="dashboard">
+          <div class="panel"><h4>Connection Gauge</h4><p class="tiny">현재 클라이언트 연결 수</p><div class="bar yellow"><span style="width:82%"></span></div><p style="margin-top:10px"><b>8,200 / 10,000</b></p></div>
+          <div class="panel"><h4>기본값</h4><div class="big-number">10000</div><p>Redis 2.6 이후 기본 설정</p></div>
+        </div>
+        <div class="note"><strong>흐름</strong>새로운 연결 생성 → 현재 연결 수 확인 → <code>maxclients</code>와 비교 → 초과 시 접속 거부</div>
+      </section>
+
+      <section id="buffer">
+        <div class="kicker">02 · Client Buffer Limit</div>
+        <h2>응답을 못 읽는 클라이언트는 서버 메모리를 계속 사용한다</h2>
+        <p class="lead">레디스는 클라이언트에 반환할 데이터를 임시로 저장하기 위해 각 클라이언트마다 출력 버퍼(Output Buffer)를 생성한다.</p>
+        <div class="flow"><div class="node">Redis 응답 생성</div><div class="arrow">→</div><div class="node">Output Buffer</div><div class="arrow">→</div><div class="node">Client 읽기</div></div>
+        <p>출력 버퍼는 레디스가 반환할 데이터 양에 따라 가변 길이다. 하지만 클라이언트가 데이터를 처리하지 못하고 계속 서버에 요청을 보내면 출력 버퍼 크기가 계속 증가하고, 결국 메모리 사용량이 증가한다.</p>
+        <div class="grid2">
+          <div class="card"><b>Hard Limit</b><p>정해진 임계치를 초과하는 순간 클라이언트 연결을 즉시 종료한다.</p></div>
+          <div class="card"><b>Soft Limit</b><p>정해진 임계치를 일정 시간 이상 유지하면 클라이언트 연결을 종료한다.</p></div>
+        </div>
+        <div class="note"><strong>클라이언트 종류별로 다르게 적용</strong>레디스에서는 일반 클라이언트, Pub/Sub 클라이언트, 복제본을 위한 출력 버퍼 크기 제한을 모두 다르게 적용한다.</div>
+      </section>
+
+      <section id="pubsub">
+        <div class="kicker">02-1 · Pub/Sub & Query Buffer</div>
+        <h2>Pub/Sub에서는 느린 구독자의 출력 버퍼가 특히 문제가 된다</h2>
+        <p class="lead">Pub/Sub에서 발행자가 메시지를 발행하면 해당 메시지는 모든 구독자에게 전달된다. 구독자가 메시지를 따라가지 못하면 해당 구독자의 출력 버퍼가 계속 증가할 수 있다.</p>
+        <div class="flow"><div class="node">Publisher</div><div class="arrow">→</div><div class="node">Redis</div><div class="arrow">→</div><div class="node">Subscriber A</div><div class="node">Subscriber B<small>느림</small></div><div class="node">Subscriber C</div></div>
+        <div class="dashboard">
+          <div class="panel"><h4>Output Buffer</h4><p>레디스가 클라이언트에게 반환할 응답 데이터를 임시 저장한다.</p><div class="bar"><span style="width:78%"></span></div></div>
+          <div class="panel"><h4>Query Buffer</h4><p>클라이언트가 보낸 명령어를 저장하는 내부 버퍼다.</p><div class="big-number" style="font-size:4rem">1GB</div><p>기본 최대 크기 1GB. 1GB를 초과하면 연결이 종료될 수 있으며 설정으로 조정 가능하다.</p></div>
+        </div>
+      </section>
+
+      <section class="dark" id="eviction">
+        <div class="kicker">03 · Client Eviction</div>
+        <h2>Redis 7부터는 클라이언트가 쓰는 총 메모리도 제한할 수 있다</h2>
+        <p class="lead">클라이언트 연결 수가 증가하면 메모리 사용량도 증가한다. 클라이언트 연결이 메모리를 과다 사용하면 OOM이 발생하거나 데이터 이빅션을 유발할 수도 있다.</p>
+        <div class="grid2">
+          <div class="card"><b>Redis 7 이전</b><p><code>maxmemory-policy</code>로 전체 메모리 상황을 관리했다. 클라이언트 메모리만 직접 제한하기는 어려웠다.</p></div>
+          <div class="card"><b>Redis 7 이후</b><p><code>maxmemory-clients</code>를 사용해 연결된 모든 클라이언트의 최대 총 메모리 사용량을 정의할 수 있다.</p></div>
+        </div>
+        <div class="cmd"><pre><span class="comment"># redis.conf 또는 CONFIG SET으로 변경 가능</span>
+maxmemory-clients 1gb</pre></div>
+        <h3>가장 많은 메모리를 쓰는 연결부터 해제한다</h3>
+        <div class="dashboard">
+          <div class="panel"><h4>Before</h4><div class="client-list"><div class="client-row"><b>Client A</b><span class="pill">120MB</span></div><div class="bar"><span style="width:100%"></span></div><div class="client-row"><b>Client B</b><span class="pill">80MB</span></div><div class="bar"><span style="width:67%"></span></div><div class="client-row"><b>Client C</b><span class="pill">30MB</span></div><div class="bar"><span style="width:25%"></span></div></div></div>
+          <div class="panel"><h4>Eviction</h4><p>임계치에 도달하면 가장 많은 메모리를 사용하는 클라이언트 연결부터 해제해 메모리를 확보한다.</p><div class="callout"><b>Client A 제거</b><p>이 동작이 클라이언트 이빅션이다.</p></div></div>
+        </div>
+        <div class="note warn"><strong>예외</strong>복제 연결에 사용되는 복제본과 마스터 커넥션은 영향을 받지 않는다. 복제 과정에서 메모리 사용량이 커도 자동으로 끊어지지 않는다.</div>
+        <div class="note"><strong>제외 처리</strong>모니터링과 알림을 보내는 중요한 클라이언트처럼 특정 연결은 이빅션 대상에서 제외할 수 있다.</div>
+      </section>
+
+      <section id="timeout">
+        <div class="kicker">04 · Timeout & TCP Keepalive</div>
+        <h2>Timeout은 유휴 연결 정리, Keepalive는 비정상 연결 감지다</h2>
+        <p class="lead">레디스 서버에 클라이언트가 연결되면 장기간 커맨드를 수행하지 않아도 기본적으로 연결이 계속 유지된다.</p>
+        <div class="vs">
+          <div class="panel"><h4>Timeout</h4><p>특정 시간 동안 활동이 없는 클라이언트를 정리한다.</p><div class="flow"><div class="node">명령 없음</div><div class="arrow">→</div><div class="node">timeout 도달</div><div class="arrow">→</div><div class="node">연결 종료</div></div><div class="cmd"><pre>timeout 0</pre></div><p class="tiny">기본값은 0, 비활성화 상태다. Pub/Sub 클라이언트에는 영향을 주지 않는다.</p></div>
+          <div class="vsmark">VS</div>
+          <div class="panel"><h4>TCP Keepalive</h4><p>연결된 클라이언트에게 주기적으로 TCP ACK를 보내 정상 응답 가능한 상태인지 확인한다.</p><div class="flow"><div class="node">ACK 전송</div><div class="arrow">→</div><div class="node">응답 없음</div><div class="arrow">→</div><div class="node">연결 종료</div></div><div class="cmd"><pre>tcp-keepalive 300</pre></div><p class="tiny">Redis 3.2.0부터 기본값은 300초다. 5분마다 TCP ACK를 보낸다.</p></div>
+        </div>
+        <div class="note"><strong>차이</strong>Timeout은 활동이 없으면 끊는 설정이고, Keepalive는 활동이 없어도 바로 끊지 않고 정상적으로 응답 가능한 연결인지 확인한 뒤 응답이 없을 때만 끊는다.</div>
+      </section>
+
+      <section class="dark" id="pipeline">
+        <div class="kicker">05 · Pipelining</div>
+        <h2>RTT가 크면 Redis가 빨라도 전체 처리량은 낮아진다</h2>
+        <p class="lead">레디스 서버와 클라이언트는 네트워크를 통해 연결되어 있다. 요청과 응답 사이의 왕복 시간인 RTT는 성능에 큰 영향을 끼친다.</p>
+        <div class="dashboard">
+          <div class="panel"><h4>예시</h4><div class="big-number">250ms</div><p>RTT가 250ms라면 Redis 서버가 초당 10만 개 요청을 처리할 수 있어도 네트워크 왕복 때문에 초당 최대 4개 요청 수준으로 제한될 수 있다.</p></div>
+          <div class="panel"><h4>해결 방향</h4><p>네트워크 통신 소요 시간을 줄이면 레디스 성능을 크게 향상시킬 수 있다.</p><div class="flow"><div class="node">요청 1개</div><div class="arrow">↔</div><div class="node">응답 대기</div><div class="arrow">×</div><div class="node">반복 감소</div></div></div>
+        </div>
+        <h3>파이프라이닝이란?</h3>
+        <p>클라이언트가 응답을 기다리지 않고 연속적으로 여러 커맨드를 레디스 서버에 보낼 수 있도록 하는 기능이다. 일반적으로는 하나의 커맨드를 보내고 결과를 받은 뒤 다음 커맨드를 보내지만, 파이프라이닝을 사용하면 여러 커맨드를 일괄 처리할 수 있다.</p>
+        <div class="cmd"><pre>SET user:1 hyun
+GET user:1
+INCR view:1
+EXPIRE user:1 60</pre></div>
+      </section>
+
+      <section id="pipeline-fast">
+        <div class="kicker">05-1 · Why Fast?</div>
+        <h2>파이프라이닝은 RTT뿐 아니라 시스템 콜도 줄인다</h2>
+        <div class="vs">
+          <div class="panel"><h4>일반 요청</h4><div class="flow"><div class="node">SET</div><div class="arrow">↔</div><div class="node">응답</div></div><div class="flow"><div class="node">GET</div><div class="arrow">↔</div><div class="node">응답</div></div><div class="flow"><div class="node">DEL</div><div class="arrow">↔</div><div class="node">응답</div></div></div>
+          <div class="vsmark">→</div>
+          <div class="panel"><h4>파이프라이닝</h4><div class="flow"><div class="node">SET<br/>GET<br/>DEL<br/>INCR</div><div class="arrow">→</div><div class="node">한 번에 전송</div><div class="arrow">→</div><div class="node">한 번에 응답</div></div></div>
+        </div>
+        <p>레디스 서버가 클라이언트에 응답하기 위해 소켓 I/O를 수행할 때 운영체제 커널 영역의 <code>read()</code>, <code>write()</code> 시스템 콜을 호출한다. 이 과정에서 발생하는 레이턴시가 레디스 서버에서 데이터를 찾고 반환하는 과정보다 클 수 있다.</p>
+        <div class="grid2">
+          <div class="card"><b>단일 read()</b><p>파이프라인으로 들어온 여러 명령을 단일 <code>read()</code> 시스템 콜로 읽을 수 있다.</p></div>
+          <div class="card"><b>단일 write()</b><p>여러 응답을 단일 <code>write()</code> 시스템 콜로 전달할 수 있어 처리량이 증가한다.</p></div>
+        </div>
+        <div class="callout"><b>4시간 → 3분 33초</b><p>책 예시처럼 대량 작업에서는 파이프라이닝만으로도 처리 시간이 크게 줄어들 수 있다.</p></div>
+        <div class="note"><strong>처리량 증가</strong>파이프라이닝에 속한 커맨드가 많아질수록 초당 수행되는 총 쿼리 수는 거의 선형적으로 증가한다.</div>
+      </section>
+
+      <section id="pipeline-warn">
+        <div class="kicker">05-2 · Caution</div>
+        <h2>파이프라인은 트랜잭션이 아니고 원자성을 보장하지 않는다</h2>
+        <div class="grid3">
+          <div class="card"><b>너무 많이 보내면 안 됨</b><p>한 번에 너무 많은 쿼리를 보내면 대역폭 한계로 인해 속도가 저하될 수 있다.</p></div>
+          <div class="card"><b>Query Buffer 제한</b><p>쿼리 버퍼 제한에 걸려 오류가 발생할 수 있다.</p></div>
+          <div class="card"><b>배치 크기 조절</b><p>일정한 개수로 나누어 배치 형태로 보내는 것이 좋다. 배치 크기는 테스트를 통해 결정한다.</p></div>
+        </div>
+        <h3>원자성 보장 X</h3>
+        <p>레디스가 파이프라인으로 들어온 명령을 처리할 때 하나의 파이프라인에 속해 있더라도 원자성을 보장하지 않는다. 파이프라이닝은 여러 커맨드를 동시에 보낼 수 있는 방법일 뿐, 다른 클라이언트의 접근을 차단하지 않는다.</p>
+        <div class="flow"><div class="node">Client 1<br/>SET A<br/>SET B</div><div class="arrow">⇄</div><div class="node">Client 2<br/>GET A<br/>INCR C</div><div class="arrow">→</div><div class="node">명령 교차 가능</div></div>
+        <h3>롤백 없음</h3>
+        <p>하나의 파이프라인 내 여러 커맨드 중 일부에 오류가 발생해도 전체 커맨드가 롤백되지 않는다. 오류를 발생시킨 커맨드만 수행되지 않고 나머지 커맨드는 정상 수행될 수 있다.</p>
+        <div class="cmd"><pre>SET a 1      <span class="ok"># 성공</span>
+WRONGCMD     <span class="warnText"># 오류</span>
+SET b 2      <span class="ok"># 성공</span></pre></div>
+        <div class="note danger"><strong>헷갈리면 안 되는 점</strong>파이프라인은 네트워크 최적화 기법이다. 트랜잭션이 필요하면 <code>MULTI</code>/<code>EXEC</code>를 사용해야 한다.</div>
+      </section>
+
+      <section class="dark" id="caching">
+        <div class="kicker">06 · Client Side Caching</div>
+        <h2>Redis 접근 자체를 줄이는 방법</h2>
+        <p class="lead">클라이언트 사이드 캐싱은 Redis 6에서 추가된 기능이다. 데이터베이스 성능도 최적화했고 Redis를 사용하는데도 성능이 충분히 나오지 않는다면 도입을 고려할 수 있다.</p>
+        <p>클라이언트와 Redis 서버 간 통신에서 많은 시간을 차지하는 네트워크 I/O를 줄이는 것은 애플리케이션 성능을 향상시키는 큰 방법이 될 수 있다.</p>
+        <div class="vs">
+          <div class="panel"><h4>기존 방식</h4><div class="flow"><div class="node">Application</div><div class="arrow">→</div><div class="node">Redis</div><div class="arrow">→</div><div class="node">응답</div></div></div>
+          <div class="vsmark">VS</div>
+          <div class="panel"><h4>Client Side Cache</h4><div class="flow"><div class="node">Application Memory</div><div class="arrow">→</div><div class="node">즉시 응답</div></div><p>자주 사용되는 쿼리 응답을 애플리케이션 메모리에 직접 저장하고, 나중에 다시 쿼리하지 않고 재사용한다.</p></div>
+        </div>
+        <div class="grid3">
+          <div class="card"><b>응답 시간 단축</b><p>네트워크를 이용하지 않고 로컬 메모리에서 데이터를 반환한다.</p></div>
+          <div class="card"><b>Redis 부하 감소</b><p>Redis에 접근하지 않고도 데이터를 반환하므로 서버 부하가 줄어든다.</p></div>
+          <div class="card"><b>적합한 데이터</b><p>자주 요청되지만 드물게 변경되는 데이터에 적합하다.</p></div>
+        </div>
+        <div class="note warn"><strong>예시</strong>SNS에 한 번 업로드한 사용자 게시물은 자주 읽히지만 수정은 드물 수 있다. 이런 데이터는 클라이언트 사이드 캐싱 후보가 될 수 있다.</div>
+        <div class="note danger"><strong>주의</strong>클라이언트 로컬 캐싱은 데이터 정합성을 고려해야 한다. Redis 데이터가 변경되었는데 클라이언트가 오래된 값을 들고 있으면 잘못된 응답을 반환할 수 있다.</div>
+      </section>
+
+      <section id="tracking">
+        <div class="kicker">06-1 · Tracking</div>
+        <h2>레디스는 캐시 무효화를 위해 Tracking을 제공한다</h2>
+        <p class="lead">레디스의 클라이언트 사이드 캐싱에서는 데이터 정합성을 처리하기 위한 방법을 트래킹이라고 부른다. 트래킹은 기본 모드와 브로드캐스팅 모드를 제공한다.</p>
+        <div class="grid2">
+          <div class="card"><b>기본 모드(Default Mode)</b><p>레디스가 클라이언트가 액세스한 키를 기억한다. 동일한 키가 수정될 때 해당 클라이언트에게 무효화 메시지를 전송한다.</p><div class="cmd"><pre>CLIENT TRACKING ON</pre></div><div class="flow" style="flex-wrap:nowrap;justify-content:center"><div class="node">GET user:1</div><div class="arrow">→</div><div class="node">Redis가 기억</div><div class="arrow">→</div><div class="node">Invalidate<small>user:1 변경 시</small></div></div><ul><li>장점: 정확하게 클라이언트가 가진 키에 대해서만 무효화 메시지를 보낸다.</li><li>단점: 서버가 키 접근 정보를 기억해야 하므로 메모리 비용이 든다.</li></ul></div>
+          <div class="card"><b>브로드캐스팅 모드(Broadcasting Mode)</b><p>레디스 서버가 모든 키 액세스를 기억하지 않는다. 대신 특정 prefix에 접근한 클라이언트만 기억한다.</p><div class="cmd"><pre>CLIENT TRACKING ON BCAST PREFIX user:</pre></div><div class="flow" style="flex-wrap:nowrap;justify-content:center"><div class="node">user:*</div><div class="arrow">→</div><div class="node">prefix 기억</div><div class="arrow">→</div><div class="node">전체 알림<small>user:999 변경 시</small></div></div><ul><li>장점: 서버 메모리를 적게 사용한다.</li><li>단점: 클라이언트가 소유하지 않은 키라도 prefix가 일치하면 변경 메시지를 받을 수 있어 CPU를 소비할 수 있다.</li></ul></div>
+        </div>
+        <table>
+          <thead><tr><th>구분</th><th>기본 모드</th><th>브로드캐스팅 모드</th></tr></thead>
+          <tbody>
+            <tr><td>서버가 기억하는 것</td><td>클라이언트가 액세스한 개별 키</td><td>클라이언트가 관심 있는 prefix</td></tr>
+            <tr><td>메모리 비용</td><td>상대적으로 큼</td><td>상대적으로 작음</td></tr>
+            <tr><td>무효화 정확도</td><td>높음</td><td>낮음</td></tr>
+            <tr><td>클라이언트 부담</td><td>낮음</td><td>prefix 불일치/불필요 알림 처리로 증가 가능</td></tr>
+          </tbody>
+        </table>
+        <div class="note"><strong>선택 기준</strong>서비스 특성에 맞게 캐싱 모드를 신중하게 선택해야 한다. 자주 요청되지만 드물게 변경되는 키를 효과적으로 캐싱하는 것이 좋다.</div>
+      </section>
+
+      <section class="dark" id="summary">
+        <div class="kicker">07 · Summary</div>
+        <h2>클라이언트 관리는 네 가지 관점으로 보면 된다</h2>
+        <div class="grid2">
+          <div class="card"><b>1. 연결 처리</b><p>Redis는 하나의 이벤트 루프에서 멀티플렉싱과 논블로킹 I/O를 사용해 수많은 클라이언트 연결을 처리한다. TCP_NODELAY와 maxclients로 지연 시간과 연결 수를 제어한다.</p></div>
+          <div class="card"><b>2. 메모리 보호</b><p>느린 클라이언트가 서버 메모리를 과도하게 사용하는 것을 막기 위해 Output Buffer, Query Buffer, Hard/Soft Limit, Client Eviction 기능을 제공한다.</p></div>
+          <div class="card"><b>3. 네트워크 최적화</b><p>파이프라이닝은 여러 명령을 한 번에 전송해 RTT와 read/write 시스템 콜을 줄인다. 이를 통해 처리량을 크게 향상시킨다.</p></div>
+          <div class="card"><b>4. Redis 접근 최소화</b><p>Client Side Caching은 자주 조회되고 드물게 변경되는 데이터를 애플리케이션 메모리에 저장한다. Tracking을 통해 캐시 정합성도 유지할 수 있다.</p></div>
+        </div>
+        <div class="callout"><b>최종 정리</b><p>Redis 클라이언트 관리는 ① 연결을 효율적으로 처리하고 ② 메모리 사용을 제어하며 ③ 네트워크 비용을 줄이고 ④ Redis 접근 자체를 최소화하는 기술들의 집합이다.</p></div>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>
