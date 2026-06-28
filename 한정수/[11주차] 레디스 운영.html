@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>레디스 운영하기 · 13장 학습 장표</title>
+<style>
+  :root{
+    --surface:#F4F5F8; --surface-2:#ECEEF3; --card:#FFFFFF;
+    --ink:#15171C; --muted:#5B616E; --faint:#8A909C;
+    --line:#E1E4EA; --line-strong:#CDD2DB;
+    --red:#DA2A1E; --red-soft:#FBEAE8; --red-ink:#9E1A11;
+    --green:#1E8F5B; --green-soft:#E7F4EE;
+    --amber:#B9791A; --amber-soft:#FAF0DD;
+    --blue:#2F6FB0; --blue-soft:#E8F0F8;
+    --con:#13151B; --con-2:#1C1F27; --con-3:#262A34;
+    --con-ink:#E7E9EE; --con-muted:#8F97A6; --con-line:#2C303B;
+    --mono:'SF Mono','JetBrains Mono','Menlo','Consolas','Liberation Mono',monospace;
+    --sans:'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',system-ui,-apple-system,sans-serif;
+    --maxw:1040px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{
+    margin:0; background:var(--surface); color:var(--ink);
+    font-family:var(--sans); line-height:1.7;
+    -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 0;
+  }
+  code,.m{font-family:var(--mono); font-size:.9em; letter-spacing:-.01em}
+  p code,li code,.lead code,td code{
+    background:var(--surface-2); border:1px solid var(--line);
+    padding:.06em .38em; border-radius:5px; color:#33373F; white-space:nowrap;
+  }
+
+  /* progress + nav */
+  .progress{position:fixed; top:0; left:0; height:3px; width:0%; background:var(--red); z-index:60; transition:width .12s linear}
+  .rail{position:fixed; left:22px; top:50%; transform:translateY(-50%); z-index:50; display:flex; flex-direction:column; gap:14px}
+  .rail a{display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--faint); font:600 11px/1 var(--mono); letter-spacing:.04em}
+  .rail a .dot{width:9px; height:9px; border-radius:50%; border:2px solid var(--line-strong); background:transparent; transition:all .2s}
+  .rail a .txt{opacity:0; transform:translateX(-4px); transition:all .2s; white-space:nowrap}
+  .rail a:hover .txt,.rail a.active .txt{opacity:1; transform:none}
+  .rail a:hover .dot{border-color:var(--red)}
+  .rail a.active{color:var(--ink)}
+  .rail a.active .dot{background:var(--red); border-color:var(--red); box-shadow:0 0 0 4px var(--red-soft)}
+  @media (max-width:1180px){.rail{display:none}}
+
+  /* layout */
+  section{padding:64px 28px; border-bottom:1px solid var(--line)}
+  .wrap{max-width:var(--maxw); margin:0 auto}
+  .eyebrow{font:700 12px/1 var(--mono); letter-spacing:.14em; color:var(--red); text-transform:uppercase; margin:0 0 14px; display:flex; align-items:center; gap:10px}
+  .eyebrow::before{content:""; width:26px; height:2px; background:var(--red); display:inline-block}
+  h1{font-size:clamp(34px,6vw,62px); line-height:1.02; letter-spacing:-.03em; font-weight:800; margin:0}
+  h2{font-size:clamp(25px,3.6vw,37px); line-height:1.12; letter-spacing:-.025em; font-weight:800; margin:0 0 6px}
+  h3{font-size:18px; font-weight:750; letter-spacing:-.01em; margin:0 0 8px}
+  .lead{font-size:clamp(16px,1.9vw,19px); color:#2A2E36; max-width:75ch; margin:14px 0 0; font-weight:450}
+  .lead strong{font-weight:750; color:var(--ink); box-shadow:inset 0 -.5em 0 var(--red-soft)}
+  .sub{color:var(--muted); max-width:74ch; margin:10px 0 0}
+
+  /* divider (part header) */
+  .divider{background:var(--con); color:var(--con-ink); border-bottom:none; position:relative; overflow:hidden}
+  .divider::after{content:""; position:absolute; inset:0; background:
+    repeating-linear-gradient(90deg, transparent 0 38px, rgba(255,255,255,.03) 38px 39px),
+    repeating-linear-gradient(0deg, transparent 0 38px, rgba(255,255,255,.03) 38px 39px);
+    pointer-events:none}
+  .divider .eyebrow{color:#FF7A6E}
+  .divider .eyebrow::before{background:#FF7A6E}
+  .divider .partno{font:800 88px/1 var(--mono); color:var(--con-3); letter-spacing:-.04em; margin:0 0 6px}
+  .divider h2{color:#fff}
+  .divider .sub{color:var(--con-muted); max-width:70ch}
+  .divider .wrap{position:relative; z-index:1}
+
+  /* generic blocks */
+  .grid{display:grid; gap:16px; margin-top:26px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media (max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px 20px 18px}
+  .card.tint-r{border-color:#F2C9C5; background:linear-gradient(180deg,#FDF3F2,#fff 60%)}
+  .card.tint-g{border-color:#C6E6D4; background:linear-gradient(180deg,#F0F8F3,#fff 60%)}
+  .card.tint-b{border-color:#C8DCEF; background:linear-gradient(180deg,#EFF5FB,#fff 60%)}
+  .card.tint-a{border-color:#EBD8AE; background:linear-gradient(180deg,#FAF4E6,#fff 60%)}
+  .card .k{font:700 11px/1 var(--mono); letter-spacing:.08em; color:var(--faint); text-transform:uppercase; margin-bottom:10px}
+
+  ul.clean{margin:10px 0 0; padding:0; list-style:none}
+  ul.clean li{position:relative; padding:4px 0 4px 20px; color:#33373F}
+  ul.clean li::before{content:""; position:absolute; left:2px; top:14px; width:6px; height:6px; border-radius:50%; background:var(--red)}
+  ul.clean li b{color:var(--ink); font-weight:700}
+  .small{font-size:13.5px; color:var(--muted)}
+
+  /* console panel (signature) */
+  .panel{background:var(--con); border:1px solid var(--con-line); border-radius:12px; overflow:hidden; margin-top:22px; box-shadow:0 10px 30px -18px rgba(0,0,0,.5)}
+  .panel .bar{display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--con-2); border-bottom:1px solid var(--con-line)}
+  .panel .bar .dots{display:flex; gap:6px}
+  .panel .bar .dots i{width:10px; height:10px; border-radius:50%; display:block; background:#3A3F4B}
+  .panel .bar .dots i:nth-child(1){background:#E5544B}
+  .panel .bar .dots i:nth-child(2){background:#E0B341}
+  .panel .bar .dots i:nth-child(3){background:#4FB06A}
+  .panel .bar .lbl{font:600 12px/1 var(--mono); color:var(--con-muted); margin-left:6px; letter-spacing:.02em}
+  .panel .body{padding:18px}
+  .panel pre{margin:0; font-family:var(--mono); font-size:13px; line-height:1.7; color:var(--con-ink); white-space:pre; overflow-x:auto}
+  .panel pre .c{color:#7E8696}        /* comment */
+  .panel pre .p{color:#FF8F84}        /* prompt/keyword */
+  .panel pre .s{color:#8FD19E}        /* string/value */
+  .panel pre .o{color:#E0B341}        /* highlight */
+  .panel pre .d{color:#9FB6FF}        /* ident */
+
+  /* diagram primitives */
+  .diagram{background:var(--con); border:1px solid var(--con-line); border-radius:12px; padding:24px; margin-top:22px; color:var(--con-ink); box-shadow:0 10px 30px -18px rgba(0,0,0,.5)}
+  .diagram .cap{font:600 12px/1 var(--mono); color:var(--con-muted); letter-spacing:.04em; margin-bottom:18px; display:flex; align-items:center; gap:8px}
+  .diagram .cap::before{content:"◤"; color:#FF7A6E}
+  .node{background:var(--con-2); border:1px solid var(--con-line); border-radius:10px; padding:12px 14px; text-align:center; min-width:0}
+  .node .t{font-weight:700; font-size:14px; color:#fff}
+  .node .s{font:600 11px/1.3 var(--mono); color:var(--con-muted); margin-top:5px}
+  .node.accent{border-color:#5a2420; background:linear-gradient(180deg,#2a1614,#1c1f27)}
+  .node.accent .t{color:#FF9388}
+  .node.g{border-color:#234a36} .node.g .t{color:#7DD6A2}
+  .node.b{border-color:#27415e} .node.b .t{color:#8FBDF0}
+  .flow{display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:12px}
+  .arr{color:#FF7A6E; font-weight:800; font-size:20px; line-height:1}
+  .arr.down{transform:rotate(90deg)}
+  .chip{display:inline-flex; align-items:center; gap:6px; font:600 12px/1 var(--mono); padding:6px 10px; border-radius:999px; border:1px solid var(--con-line); color:var(--con-ink); background:#1f232c}
+  .chip.port{color:#E0B341; border-color:#5a4a1c; background:#231f12}
+  .chip.r{color:#FF9388; border-color:#5a2420; background:#241614}
+
+  /* tables */
+  .tbl{width:100%; border-collapse:collapse; margin-top:8px; font-size:14px}
+  .tbl th,.tbl td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--line)}
+  .tbl th{font:700 11px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--faint); background:var(--surface-2)}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl td.cmd{font-family:var(--mono); font-weight:600; color:var(--ink); white-space:nowrap}
+  .tbl .grp td{background:#fff; font-weight:800; color:var(--ink); border-bottom:2px solid var(--line-strong); padding-top:14px}
+  .tbl .grp td span{font:700 11px/1 var(--mono); color:var(--red); letter-spacing:.05em; margin-right:8px}
+  .O{display:inline-block; font:700 12px/1 var(--mono); padding:3px 7px; border-radius:6px; white-space:nowrap}
+  .O.bad{background:var(--red-soft); color:var(--red-ink)}
+  .O.mid{background:var(--amber-soft); color:var(--amber)}
+  .O.ok{background:var(--green-soft); color:var(--green)}
+
+  /* callouts */
+  .note{display:flex; gap:13px; padding:15px 17px; border-radius:12px; margin-top:18px; font-size:14.5px; line-height:1.65}
+  .note .ic{flex:0 0 auto; width:24px; height:24px; border-radius:7px; display:grid; place-items:center; font-weight:800; font-size:13px; color:#fff}
+  .note.warn{background:var(--amber-soft); border:1px solid #ECD9AE} .note.warn .ic{background:var(--amber)}
+  .note.good{background:var(--green-soft); border:1px solid #C6E6D4} .note.good .ic{background:var(--green)}
+  .note.info{background:var(--blue-soft); border:1px solid #C8DCEF} .note.info .ic{background:var(--blue)}
+  .note.fix{background:#F3EAFB; border:1px solid #DEC9F2} .note.fix .ic{background:#8B45C7}
+  .note b{font-weight:750}
+  .note .t{font-weight:750; display:block; margin-bottom:2px}
+
+  /* steps timeline */
+  .steps{margin-top:24px; position:relative; padding-left:34px}
+  .steps::before{content:""; position:absolute; left:11px; top:6px; bottom:6px; width:2px; background:var(--line-strong)}
+  .step{position:relative; padding:0 0 18px}
+  .step:last-child{padding-bottom:0}
+  .step .n{position:absolute; left:-34px; top:0; width:24px; height:24px; border-radius:50%; background:var(--card); border:2px solid var(--red); color:var(--red); font:800 12px/1 var(--mono); display:grid; place-items:center}
+  .step.phase .n{background:var(--red); color:#fff}
+  .step .h{font-weight:750; font-size:15px}
+  .step .d{font-size:13.5px; color:var(--muted)}
+  .phase-tag{display:inline-block; font:700 10px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--red); background:var(--red-soft); padding:4px 8px; border-radius:6px; margin-bottom:2px}
+
+  /* benchmark bar */
+  .bench{margin-top:8px}
+  .bench .row{display:grid; grid-template-columns:160px 1fr auto; align-items:center; gap:12px; margin:9px 0}
+  .bench .row .lab{font:600 13px/1.3 var(--mono); color:var(--ink)}
+  .bench .track{height:26px; border-radius:7px; background:var(--surface-2); overflow:hidden}
+  .bench .fill{height:100%; border-radius:7px; display:flex; align-items:center; padding-left:10px; color:#fff; font:700 12px/1 var(--mono)}
+  .bench .v{font:800 14px/1 var(--mono)}
+
+  /* keyspace builder */
+  .kbuild{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px}
+  .ktok{border:1px solid var(--line); border-radius:9px; padding:8px 11px; background:var(--card); text-align:center; min-width:52px}
+  .ktok .c{font:800 16px/1 var(--mono); color:var(--red)}
+  .ktok .l{font-size:11px; color:var(--muted); margin-top:4px}
+  .ktok.dim{opacity:.5}
+
+  /* hero */
+  .hero{background:linear-gradient(180deg,#fff, var(--surface)); position:relative; overflow:hidden; padding-top:90px; padding-bottom:74px}
+  .hero::before{content:""; position:absolute; inset:0; background:
+    radial-gradient(60% 50% at 85% 0%, rgba(218,42,30,.06), transparent 60%),
+    repeating-linear-gradient(90deg, transparent 0 44px, rgba(21,23,28,.022) 44px 45px);
+    pointer-events:none}
+  .hero .wrap{position:relative}
+  .hero h1 .accent{color:var(--red)}
+  .herometa{display:flex; flex-wrap:wrap; gap:8px; margin-top:26px}
+  .herometa .chip{background:var(--card); border-color:var(--line); color:#33373F}
+  .topo{margin-top:30px}
+  .toporow{display:flex; align-items:stretch; flex-wrap:wrap; gap:10px}
+  .toporow .seg{display:flex; align-items:center; gap:10px}
+
+  footer{padding:40px 28px 70px; color:var(--muted); font-size:13.5px}
+  footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-between; align-items:center}
+  .pill{font:600 11px/1 var(--mono); color:var(--faint); border:1px solid var(--line); border-radius:999px; padding:6px 11px}
+
+  .reveal{opacity:0; transform:translateY(14px); transition:opacity .55s ease, transform .55s ease}
+  .reveal.in{opacity:1; transform:none}
+  @media (prefers-reduced-motion:reduce){.reveal{opacity:1; transform:none; transition:none}}
+  a.skip{position:absolute; left:-9999px} a.skip:focus{left:12px; top:12px; background:#fff; padding:8px 12px; border:2px solid var(--red); border-radius:8px; z-index:99}
+</style>
+</head>
+<body>
+<div class="progress" id="prog"></div>
+<a href="#hero" class="skip">본문 바로가기</a>
+
+<nav class="rail" aria-label="섹션 이동">
+  <a href="#hero" data-r><span class="dot"></span><span class="txt">표지</span></a>
+  <a href="#p1" data-r><span class="dot"></span><span class="txt">01 모니터링 구축</span></a>
+  <a href="#p2" data-r><span class="dot"></span><span class="txt">02 버전 업그레이드</span></a>
+  <a href="#p3" data-r><span class="dot"></span><span class="txt">03 위험 설정</span></a>
+  <a href="#p4" data-r><span class="dot"></span><span class="txt">04 성능 최적화</span></a>
+  <a href="#p5" data-r><span class="dot"></span><span class="txt">05 운영 지표</span></a>
+</nav>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero" id="hero">
+  <div class="wrap">
+    <p class="eyebrow">개발자를 위한 레디스 · Chapter 13</p>
+    <h1>레디스 <span class="accent">운영하기</span></h1>
+    <p class="lead">레디스를 장애 없이 굴리는 일은 곧 <strong>관찰 → 갱신 → 예방 → 최적화</strong>의 반복입니다. 13장은 모니터링 시스템을 직접 세우고, 무중단으로 버전을 올리고, 장애를 부르는 설정을 걷어내고, 싱글 스레드 위에서 성능을 끌어내는 방법을 다룹니다.</p>
+    <div class="herometa">
+      <span class="chip">Prometheus + Grafana</span>
+      <span class="chip">Sentinel / Cluster 업그레이드</span>
+      <span class="chip">maxmemory · AOF · COW</span>
+      <span class="chip">O(N) 커맨드 · Lazy Free</span>
+      <span class="chip">Lua · 출력 버퍼 · keyspace</span>
+      <span class="chip">SlowLog · 지표</span>
+    </div>
+
+    <div class="topo">
+      <div class="diagram" style="margin-top:0">
+        <div class="cap">monitoring &amp; ops at a glance</div>
+        <div class="toporow">
+          <div class="seg"><div class="node accent"><div class="t">Redis</div><div class="s">데이터 저장</div></div><span class="arr">→</span></div>
+          <div class="seg"><div class="node"><div class="t">Exporter</div><div class="s">메트릭 노출</div></div><span class="arr">→</span></div>
+          <div class="seg"><div class="node b"><div class="t">Prometheus</div><div class="s">pull 수집</div></div><span class="arr">→</span></div>
+          <div class="seg"><div class="node g"><div class="t">Grafana</div><div class="s">시각화</div></div></div>
+        </div>
+        <div class="flow" style="margin-top:14px; justify-content:flex-start">
+          <span class="chip r">Alertmanager</span><span class="arr">→</span>
+          <span class="chip">SMS</span><span class="chip">Email</span><span class="chip">Slack / Discord</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 개요 -->
+<section id="map">
+  <div class="wrap reveal">
+    <p class="eyebrow">한눈에 보기</p>
+    <h2>13장의 다섯 갈래</h2>
+    <p class="sub">앞 절반은 “시스템을 세우고 갱신하는” 인프라 작업, 뒤 절반은 “운영 중에 터지지 않게 만드는” 설정·코드·지표 이야기입니다.</p>
+    <div class="grid g3">
+      <div class="card tint-r"><div class="k">Part 01</div><h3>모니터링 구축</h3><p class="small">Prometheus·Grafana·Alertmanager로 레디스 대시보드와 알림을 직접 구성합니다.</p></div>
+      <div class="card"><div class="k">Part 02</div><h3>버전 업그레이드</h3><p class="small">EOL 대비. Sentinel / Cluster 구성에서 무중단으로 버전을 올리는 절차.</p></div>
+      <div class="card tint-a"><div class="k">Part 03</div><h3>위험한 설정 항목</h3><p class="small">maxmemory-policy, bgsave, 자동 백업 등 장애·성능 저하를 부르는 설정.</p></div>
+      <div class="card tint-b"><div class="k">Part 04</div><h3>운영 &amp; 성능 최적화</h3><p class="small">O(N) 커맨드, Lazy Free, 트랜잭션/Lua, 안티패턴, 출력 버퍼, keyspace 알림.</p></div>
+      <div class="card tint-g"><div class="k">Part 05</div><h3>운영 모니터링 지표</h3><p class="small">SlowLog와 CPU·메모리·네트워크·커넥션·복제 그래프 지표.</p></div>
+      <div class="card" style="display:flex; align-items:center; justify-content:center; background:var(--con); border-color:var(--con-line)"><p style="margin:0; color:var(--con-muted); font:600 13px/1.6 var(--mono); text-align:center">scroll ↓<br><span style="color:#FF7A6E">p.377 – 426</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PART 01 ===================== -->
+<section class="divider" id="p1">
+  <div class="wrap reveal">
+    <p class="partno">01</p>
+    <p class="eyebrow">Monitoring</p>
+    <h2>프로메테우스 &amp; 그라파나로<br>레디스 모니터링 구축하기</h2>
+    <p class="sub">운영의 출발점은 관찰입니다. Exporter가 메트릭을 노출하면 Prometheus가 끌어와 저장하고, Grafana가 그립니다. 임계치를 넘으면 Alertmanager가 사람에게 알립니다.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">1 · 아키텍처</p>
+    <h2>누가 무엇을 수집하는가</h2>
+    <p class="lead"><strong>Exporter</strong>는 대상의 상태를 실시간으로 스크랩해 메트릭으로 노출하는 프로그램입니다. Prometheus는 지정한 타깃(Exporter)에 <strong>직접 접근해 pull 방식</strong>으로 시계열 데이터를 가져옵니다.</p>
+    <div class="diagram">
+      <div class="cap">그림 13-1 · 레디스 모니터링 구조</div>
+      <div style="display:grid; grid-template-columns:1.1fr auto 1fr; gap:16px; align-items:center">
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <div class="node"><div class="t">Redis 서버 1</div><div class="s">Redis Exporter · Node Exporter</div></div>
+          <div class="node"><div class="t">Redis 서버 2</div><div class="s">Redis Exporter · Node Exporter</div></div>
+          <div class="node"><div class="t">Redis 서버 3 · 인스턴스 2개</div><div class="s">Redis Exporter ×2 · Node Exporter ×1</div></div>
+        </div>
+        <div style="text-align:center"><div class="s" style="font:600 11px/1.4 var(--mono); color:var(--con-muted); margin-bottom:6px">pull</div><span class="arr">→</span></div>
+        <div style="display:flex; flex-direction:column; gap:12px">
+          <div class="flow" style="justify-content:flex-start"><span class="chip r">Alertmanager</span><span class="arr">→</span><span class="chip">SMS·Email·Slack</span></div>
+          <div class="flow" style="justify-content:flex-start"><span class="arr down">→</span></div>
+          <div class="node b"><div class="t">Prometheus</div><div class="s">시계열 저장 · 알림 규칙</div></div>
+          <div class="flow" style="justify-content:flex-start"><span class="arr">→</span><div class="node g" style="flex:1"><div class="t">Grafana</div><div class="s">대시보드 시각화</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>Redis Exporter</h3><p class="small">지정한 레디스 인스턴스의 실시간 정보(메모리·연결·복제 등)를 수집합니다. <b>인스턴스마다 1개</b>가 필요합니다.</p></div>
+      <div class="card"><h3>Node Exporter</h3><p class="small">레디스가 도는 <b>서버의 하드웨어·OS 메트릭</b>을 수집합니다. 한 서버에 인스턴스가 2개여도 Node Exporter는 1개면 됩니다.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">2 · 구성과 포트</p>
+    <h2>서버 두 대로 짜는 실습 구성</h2>
+    <p class="lead">대상 서버에 <strong>Exporter</strong>들을, 별도 모니터링 서버에 <strong>Prometheus·Grafana·Alertmanager</strong>를 올립니다. Prometheus가 대상 서버의 Exporter를 pull로 긁어옵니다.</p>
+    <div class="diagram">
+      <div class="cap">node layout &amp; ports</div>
+      <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:18px; align-items:center">
+        <div class="node accent" style="text-align:left; padding:16px">
+          <div class="t" style="margin-bottom:10px">10.0.0.1 · 레디스 서버</div>
+          <div class="flow" style="justify-content:flex-start; gap:8px">
+            <span class="chip port">redis :6379</span><span class="chip port">redis_exporter :9121</span><span class="chip port">node_exporter :9100</span>
+          </div>
+        </div>
+        <div style="text-align:center"><div class="s" style="font:600 11px/1.4 var(--mono); color:var(--con-muted); margin-bottom:6px">scrape</div><span class="arr">←</span></div>
+        <div class="node b" style="text-align:left; padding:16px">
+          <div class="t" style="margin-bottom:10px">10.0.0.2 · 모니터링 서버</div>
+          <div class="flow" style="justify-content:flex-start; gap:8px">
+            <span class="chip port">prometheus :9090</span><span class="chip port">grafana :3000</span><span class="chip port">alertmanager :9093</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note info"><div class="ic">i</div><div><span class="t">설치 순서</span><code>node_exporter</code> → <code>redis_exporter</code> → <code>alertmanager</code> → <code>prometheus</code> → <code>grafana</code> 순으로 백그라운드 실행합니다. Grafana 기본 접속은 <code>:3000</code>, 초기 계정은 <code>admin / admin</code>입니다.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">3 · Exporter 설정 &amp; 알림 규칙</p>
+    <h2>무엇을 긁고, 언제 알릴까</h2>
+    <p class="lead">Redis Exporter는 플래그(또는 환경변수)로 <strong>수집 대상과 인증</strong>을 지정합니다. 알림은 Prometheus의 <strong>alert rule</strong>로 임계치를 정의하고, 발화 시 Alertmanager가 채널로 보냅니다.</p>
+    <div class="grid g2" style="margin-top:22px">
+      <div class="card">
+        <div class="k">redis_exporter 주요 플래그</div>
+        <table class="tbl">
+          <tr><td class="cmd">redis.addr</td><td class="small">수집 대상 주소 · 기본 <code>redis://localhost:6379</code></td></tr>
+          <tr><td class="cmd">redis.user</td><td class="small">ACL 사용 시 유저명</td></tr>
+          <tr><td class="cmd">redis.password</td><td class="small">접속 비밀번호</td></tr>
+          <tr><td class="cmd">web.listen-address</td><td class="small">노출 주소 · 기본 <code>0.0.0.0:9121</code></td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="k">prometheus 스크랩 / 알림</div>
+        <ul class="clean">
+          <li><b>scrape_configs</b> 에 Redis·Linux job 등록 (타깃: <code>:9121</code>, <code>:9100</code>)</li>
+          <li><b>alerting</b> → Alertmanager(<code>:9093</code>) 연결, <b>rule_files</b> 로 규칙 로드</li>
+          <li>Alertmanager <code>route</code>/<code>receivers</code> 에서 Discord webhook 등 지정</li>
+        </ul>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="lbl">alert.rules — redis</span></div>
+      <div class="body"><pre><span class="p">- alert:</span> RedisDown
+  <span class="p">expr:</span> redis_up == <span class="o">0</span>
+  <span class="p">annotations:</span> { summary: <span class="s">"Redis down (instance {{ $labels.instance }})"</span> }
+
+<span class="p">- alert:</span> RedisMissingMaster        <span class="c"># 마스터가 사라짐</span>
+  <span class="p">expr:</span> (count(redis_instance_info{role=<span class="s">"master"</span>}) or vector(0)) &lt; <span class="o">1</span>
+
+<span class="p">- alert:</span> RedisReplicationBroken     <span class="c"># 복제본 수 급감</span>
+  <span class="p">expr:</span> delta(redis_connected_slaves[1m]) &lt; <span class="o">0</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">4 · Grafana 대시보드</p>
+    <h2>대시보드를 얻는 두 가지 길</h2>
+    <p class="lead">Prometheus를 <strong>중간 저장소로 거치는 방식</strong>과, Grafana의 <strong>Redis 플러그인으로 직결하는 방식</strong>이 있습니다. 전자는 과거 시점 그래프를, 후자는 Exporter 없는 실시간 조회를 줍니다.</p>
+    <div class="grid g2">
+      <div class="card tint-b">
+        <div class="k">방식 A · Prometheus 경유</div>
+        <h3>저장된 시계열을 그린다</h3>
+        <ul class="clean">
+          <li>데이터소스에 Prometheus(<code>http://10.0.0.2:9090</code>) 추가</li>
+          <li>공식 대시보드 import — <b>node exporter full = ID 1860</b></li>
+          <li>외부에 일정 기간 보관 → <b>원하는 과거 시점 그래프</b> 조회 가능</li>
+        </ul>
+      </div>
+      <div class="card tint-r">
+        <div class="k">방식 B · Redis 플러그인 직결</div>
+        <h3>레디스를 바로 본다</h3>
+        <ul class="clean">
+          <li>RedisGrafana 플러그인(<b>Redis / Redis Application</b>) 설치</li>
+          <li>데이터소스에 레디스 주소 직접 입력 (Standalone·Cluster·Sentinel)</li>
+          <li><b>Exporter 불필요</b> · <code>redis-cli</code> 패널로 Grafana에서 직접 커맨드</li>
+          <li>온프레미스·클라우드 상품 모두 실시간 대시보드 가능</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PART 02 ===================== -->
+<section class="divider" id="p2">
+  <div class="wrap reveal">
+    <p class="partno">02</p>
+    <p class="eyebrow">Upgrade</p>
+    <h2>레디스 버전 업그레이드</h2>
+    <p class="sub">레디스는 릴리스 주기가 빠르고 EOL이 짧습니다. 버그·보안 취약점을 피하려면 EOL 이전 버전을 유지하도록 주기적으로 올리는 편이 좋습니다.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">1 · 두 가지 방법</p>
+    <h2>다운타임을 줄 것인가, 접속 정보를 바꿀 것인가</h2>
+    <p class="lead">업그레이드는 크게 둘입니다. <strong>고가용성(Sentinel·Cluster) 구성이면 복제본부터 하나씩 올려 무중단</strong>이 가능하고, 싱글 구성이면 둘 중 하나의 비용을 감수해야 합니다.</p>
+    <div class="grid g2">
+      <div class="card tint-g">
+        <div class="k">방법 ①</div>
+        <h3>신규 서버에 설치 후 데이터 복제</h3>
+        <p class="small">새 버전을 새 서버에 올리고 기존 데이터를 복제합니다.</p>
+        <ul class="clean">
+          <li><b>다운타임 없음</b></li>
+          <li>대신 애플리케이션의 <b>접속 정보 변경 필요</b></li>
+        </ul>
+      </div>
+      <div class="card tint-a">
+        <div class="k">방법 ②</div>
+        <h3>인스턴스 중지 후 신규 소스로 재실행</h3>
+        <p class="small">실행 중인 인스턴스를 멈추고 새 바이너리로 다시 띄웁니다.</p>
+        <ul class="clean">
+          <li><b>접속 정보 유지</b></li>
+          <li>단, 싱글 구성이면 <b>다운타임 발생</b></li>
+        </ul>
+      </div>
+    </div>
+    <div class="note info"><div class="ic">v</div><div><span class="t">버전 확인</span>실행 전후로 <code>redis-server --version</code> 또는 접속 후 <code>INFO server</code>(<code>redis_version</code>)로 버전을 확인합니다.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">2 · Sentinel 구성</p>
+    <h2>센티널 → 복제본 → 페일오버 → 마스터</h2>
+    <p class="lead">핵심 원칙은 <strong>“상태 없는 센티널을 먼저, 복제본을 그다음, 마스터는 페일오버 뒤 마지막”</strong>입니다. 전 과정에서 다운타임 없이 전체 인스턴스를 올릴 수 있습니다.</p>
+    <div class="steps">
+      <div class="step phase"><span class="n">1</span><div><span class="phase-tag">Sentinel</span><div class="h">센티널 3대를 신규 바이너리로 교체</div><div class="d">3대 모두 종단 → 기존 <code>sentinel.conf</code> 복사 → 새 바이너리로 시작. 센티널은 상태가 없어 안전합니다.</div></div></div>
+      <div class="step phase"><span class="n">2</span><div><span class="phase-tag">Replica</span><div class="h">복제본 인스턴스를 먼저 교체</div><div class="d"><code>config rewrite</code>로 설정을 파일에 반영한 뒤 <code>shutdown</code> → 기존 <code>redis.conf</code> 복사 → 새 바이너리로 시작.</div></div></div>
+      <div class="step phase"><span class="n">3</span><div><span class="phase-tag">Failover</span><div class="h">수동 페일오버로 역할 교대</div><div class="d"><code>sentinel failover mymaster</code> 실행. 기존 마스터에서 <code>INFO replication</code> → <code>role:slave</code> 확인.</div></div></div>
+      <div class="step phase"><span class="n">4</span><div><span class="phase-tag">Master</span><div class="h">이제 복제본이 된 기존 마스터를 교체</div><div class="d">2단계와 동일하게 중단·설정 복사·재실행. 필요하면 페일오버를 한 번 더 수행해 원래 마스터로 <b>페일백</b>합니다.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">3 · Cluster 구성</p>
+    <h2>복제본부터 올리고, 페일오버로 번갈아</h2>
+    <p class="lead">클러스터는 <strong>센티널 인스턴스를 고려할 필요가 없어 더 간단</strong>합니다. 마스터 A·B·C와 그 복제본 D·E·F가 있을 때, 복제본을 먼저 올리고 페일오버로 역할을 바꿔가며 기존 마스터를 올립니다.</p>
+    <div class="diagram">
+      <div class="cap">A·B·C (master) ↔ D·E·F (replica)</div>
+      <div class="g3 grid" style="margin-top:0">
+        <div class="node"><div class="t">A ↔ D</div><div class="s">master ↔ replica</div></div>
+        <div class="node"><div class="t">B ↔ E</div><div class="s">master ↔ replica</div></div>
+        <div class="node"><div class="t">C ↔ F</div><div class="s">master ↔ replica</div></div>
+      </div>
+    </div>
+    <div class="steps" style="margin-top:22px">
+      <div class="step"><span class="n">1</span><div><div class="h">복제본 D·E·F 각각 버전 업그레이드</div></div></div>
+      <div class="step phase"><span class="n">2</span><div><div class="h">D에서 페일오버 → D가 마스터, A가 복제본으로</div></div></div>
+      <div class="step"><span class="n">3</span><div><div class="h">A 업그레이드</div></div></div>
+      <div class="step phase"><span class="n">4</span><div><div class="h">E에서 페일오버</div></div></div>
+      <div class="step"><span class="n">5</span><div><div class="h">B 업그레이드</div></div></div>
+      <div class="step phase"><span class="n">6</span><div><div class="h">F에서 페일오버</div></div></div>
+      <div class="step"><span class="n">7</span><div><div class="h">C 업그레이드</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PART 03 ===================== -->
+<section class="divider" id="p3">
+  <div class="wrap reveal">
+    <p class="partno">03</p>
+    <p class="eyebrow">Risky Settings</p>
+    <h2>장애·성능 저하를 부르는<br>레디스 설정 항목</h2>
+    <p class="sub">기본값이 항상 안전하지는 않습니다. 메모리 정책, 백업 실패 처리, 자동 백업 빈도 — 운영 전에 의도에 맞게 손봐야 하는 설정들입니다.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">1 · maxmemory-policy</p>
+    <h2>메모리가 가득 차면 무엇을 버릴까</h2>
+    <p class="lead">기본값 <strong><code>noeviction</code></strong>은 메모리 한계에 닿으면 <strong>어떤 키도 버리지 않고 쓰기를 거부(에러)</strong>합니다. 데이터 유실은 막지만, 더 이상 입력을 못 받아 애플리케이션 장애로 이어질 수 있습니다.</p>
+    <div class="diagram">
+      <div class="cap">eviction 분기</div>
+      <div class="flow">
+        <div class="node" style="min-width:170px"><div class="t">메모리 사용량</div><div class="s">→ maxmemory 도달</div></div>
+        <span class="arr">→</span>
+        <div style="display:flex; flex-direction:column; gap:12px">
+          <div class="node accent" style="text-align:left"><div class="t">noeviction <span style="color:var(--con-muted); font-weight:600">(기본)</span></div><div class="s" style="color:#FF9388">쓰기 거부 · 에러 반환 ✗</div></div>
+          <div class="node g" style="text-align:left"><div class="t">allkeys-lru <span style="color:var(--con-muted); font-weight:600">(권장)</span></div><div class="s" style="color:#7DD6A2">오래된 키 제거 · 입력 계속 ✓</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="note good"><div class="ic">✓</div><div><b>권장:</b> 일부 데이터가 삭제되더라도 계속 새 입력을 받아야 한다면 <code>allkeys-lru</code>로 설정합니다.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">2 · stop-writes-on-bgsave-error</p>
+    <h2>백업이 실패하면 쓰기를 멈출까</h2>
+    <p class="lead">기본값 <strong><code>yes</code></strong>는 RDB 스냅숏 저장이 실패하면 <strong>모든 쓰기를 중지</strong>합니다. 최신 백업 실패를 인지시켜 더 큰 장애를 막기 위함입니다.</p>
+    <div class="grid g2">
+      <div class="card tint-r"><div class="k">yes · 기본</div><h3>쓰기 중지</h3><p class="small">백업 실패 = 서버에 문제 있음을 즉시 알림. 안전 우선.</p></div>
+      <div class="card tint-b"><div class="k">no</div><h3>쓰기 계속</h3><p class="small">이미 다른 모니터링이 충분해 디스크 문제를 빠르게 잡을 수 있고, 쓰기가 끊기면 안 되는 경우 비활성화.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">3 · 자동 백업 옵션</p>
+    <h2>RDB·AOF는 의도한 시간에만</h2>
+    <p class="lead">백업(RDB/AOF)은 운영 인스턴스에 부하를 줍니다. 백그라운드 백업은 <strong>COW(Copy-On-Write)</strong>로 동작해 메모리가 최대 <code>maxmemory</code>의 <strong>2배</strong>까지 늘 수 있어, 적절한 <code>maxmemory</code> 없이는 최악의 경우 OOM을 부릅니다.</p>
+    <div class="grid g2">
+      <div class="card">
+        <div class="k">RDB · save</div>
+        <p class="small">기본값 <code>3600 1 / 300 100 / 60 10000</code> = 1시간 1회 · 5분 100회 · 1분 10000회 변경 시 자동 생성.</p>
+        <div class="panel" style="margin-top:12px"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="lbl">redis-cli</span></div><div class="body"><pre><span class="p">&gt;</span> CONFIG SET save <span class="s">""</span>   <span class="c"># 자동 RDB 끄기</span>
+OK</pre></div></div>
+      </div>
+      <div class="card">
+        <div class="k">AOF · rewrite</div>
+        <p class="small"><code>auto-aof-rewrite-percentage 100</code>(기존보다 100% 증가 시 재작성) · <code>min-size 64MB</code>(67108864).</p>
+        <div class="panel" style="margin-top:12px"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="lbl">redis-cli</span></div><div class="body"><pre><span class="p">&gt;</span> CONFIG SET auto-aof-rewrite-percentage <span class="o">0</span>
+OK   <span class="c"># 자동 재작성 막고 수동 시간에</span></pre></div></div>
+      </div>
+    </div>
+    <div class="note warn"><div class="ic">!</div><div><span class="t">COW 메모리 폭증</span>포그라운드 백업은 메인 스레드를 막아 성능에 영향, 백그라운드 백업은 메모리를 최대 2배까지 사용. 백업은 의도한 시간·인스턴스(가능하면 복제본)에서 수행하도록 설정하세요.</div></div>
+  </div>
+</section>
+
+<!-- ===================== PART 04 ===================== -->
+<section class="divider" id="p4">
+  <div class="wrap reveal">
+    <p class="partno">04</p>
+    <p class="eyebrow">Performance</p>
+    <h2>레디스 운영 &amp; 성능 최적화</h2>
+    <p class="sub">레디스는 커맨드를 실행하는 동안 싱글 스레드 이벤트 루프로 동작합니다. 하나의 느린 커맨드가 모두를 막는다는 사실이 이 절의 모든 이야기의 전제입니다.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">1 · 싱글 스레드의 함정</p>
+    <h2>O(N) 이상의 커맨드를 지양한다</h2>
+    <p class="lead">한 번에 하나의 커맨드만 처리하므로, <strong>실행이 길어지면 다른 모든 클라이언트가 대기</strong>합니다. 흔한 오해는 <code>KEYS</code>·<code>FLUSHALL</code>만 느리다는 생각인데, <strong>set·list·hash 같은 컬렉션 커맨드도 아이템 수에 비례</strong>해 느려집니다.</p>
+    <div class="note warn"><div class="ic">!</div><div>지연을 막는 가장 단순한 규칙: <b>하나의 키 안에 아이템을 너무 많이 담지 않는다.</b> 시간 복잡도의 N은 대개 “그 자료 구조 안의 아이템 개수”입니다.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">2 · 커맨드 복잡도 레퍼런스</p>
+    <h2>피해야 할 O(N) 커맨드 지도</h2>
+    <p class="lead">자료 구조별로 비용이 큰 커맨드를 모았습니다. <span class="O bad">빨강</span>은 전체/곱 비례, <span class="O mid">주황</span>은 부분 순회, <span class="O ok">초록</span>은 효율적입니다.</p>
+    <div class="card" style="padding:6px 10px; margin-top:22px">
+      <table class="tbl">
+        <tr class="grp"><td colspan="3"><span>KEYSPACE</span>키스페이스 (N = 전체 키 개수)</td></tr>
+        <tr><td class="cmd">KEYS</td><td><span class="O bad">O(N)</span></td><td class="small">모든 키 순회 → <code>SCAN</code>으로 대체</td></tr>
+        <tr><td class="cmd">FLUSHALL / FLUSHDB</td><td><span class="O bad">O(N)</span></td><td class="small">전체 삭제. <code>ASYNC</code> 옵션이면 백그라운드 수행</td></tr>
+        <tr class="grp"><td colspan="3"><span>COMMON</span>자료 구조 공통 (N = 내부 아이템 개수)</td></tr>
+        <tr><td class="cmd">DEL</td><td><span class="O ok">O(1)</span>/<span class="O bad">O(N)</span></td><td class="small">string은 O(1), 컬렉션은 O(N)·포그라운드 → 크면 <code>UNLINK</code></td></tr>
+        <tr><td class="cmd">SORT / SORT_RO</td><td><span class="O mid">O(N+M·logM)</span></td><td class="small">list·set·zset 정렬. <code>SORT_RO</code>는 읽기 전용(복제본 가능)</td></tr>
+        <tr class="grp"><td colspan="3"><span>SET</span>set</td></tr>
+        <tr><td class="cmd">SDIFF · SUNION (+STORE)</td><td><span class="O bad">O(N)</span></td><td class="small">차집합 · 합집합 (N = 전체 아이템 수)</td></tr>
+        <tr><td class="cmd">SINTER · SINTERCARD</td><td><span class="O bad">O(N·M)</span></td><td class="small">교집합. <code>SINTERCARD</code>(v7)는 카디널리티만, <code>LIMIT</code> 도달 시 종료</td></tr>
+        <tr class="grp"><td colspan="3"><span>LIST</span>list (인덱스 접근 주의)</td></tr>
+        <tr><td class="cmd">LINDEX · LINSERT · LSET · LPOS</td><td><span class="O bad">O(N)</span></td><td class="small">양 끝 제외 인덱스 접근은 도달까지 순회 (최악 전체)</td></tr>
+        <tr class="grp"><td colspan="3"><span>HASH</span>hash</td></tr>
+        <tr><td class="cmd">HGETALL · HKEYS · HVALS</td><td><span class="O bad">O(N)</span></td><td class="small">전체 필드/값 반환</td></tr>
+        <tr class="grp"><td colspan="3"><span>SORTED SET</span>sorted set (기본은 효율적)</td></tr>
+        <tr><td class="cmd">기본 접근</td><td><span class="O ok">O(logN)</span></td><td class="small">입력 시 자동 정렬 → 인덱스·스코어 접근 효율적</td></tr>
+        <tr><td class="cmd">ZUNION (+STORE)</td><td><span class="O mid">O(N)+O(M·logM)</span></td><td class="small">합집합</td></tr>
+        <tr><td class="cmd">ZINTER · ZINTERCARD</td><td><span class="O mid">O(N·K)+O(M·logM)</span></td><td class="small">교집합 (v7 <code>ZINTERCARD</code>: 카디널리티 + <code>LIMIT</code>)</td></tr>
+        <tr><td class="cmd">ZDIFF (+STORE)</td><td><span class="O mid">O(L+(N-K)·logN)</span></td><td class="small">차집합</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">3 · Lazy Freeing</p>
+    <h2>DEL은 동기, UNLINK는 비동기</h2>
+    <p class="lead"><code>DEL</code>은 메인 스레드에서 동기로 메모리를 해제합니다. 아이템이 수백만인 큰 키는 <strong>비동기로 해제하는 <code>UNLINK</code></strong>가 낫습니다. 삭제는 사용자 호출 외에 <strong>eviction·만료·RENAME·복제 FLUSH</strong> 같은 시스템 상황에서도 일어납니다.</p>
+    <div class="diagram">
+      <div class="cap">freeObjAsync — redis/src/lazyfree.c</div>
+      <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:14px; align-items:center">
+        <div class="node accent" style="text-align:left"><div class="t">메인 스레드 · DEL</div><div class="s" style="color:#FF9388">동기 해제 → 큰 키면 차단</div></div>
+        <div style="text-align:center"><div class="s" style="color:var(--con-muted); margin-bottom:6px; font:600 11px/1.4 var(--mono)">조건 판단</div><span class="arr">→</span></div>
+        <div class="node g" style="text-align:left"><div class="t">bio 스레드 · UNLINK</div><div class="s" style="color:#7DD6A2">비동기 해제 → 차단 없음</div></div>
+      </div>
+      <div class="panel" style="margin-top:18px; box-shadow:none"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="lbl">lazyfree.c</span></div><div class="body"><pre><span class="c">#define LAZYFREE_THRESHOLD 64</span>
+<span class="p">if</span> (free_effort &gt; <span class="o">LAZYFREE_THRESHOLD</span> &amp;&amp; obj-&gt;refcount == <span class="o">1</span>) {
+    bioCreateLazyFreeJob(...);   <span class="c">// 비동기 해제</span>
+} <span class="p">else</span> {
+    decrRefCount(obj);           <span class="c">// 동기 해제 (DEL)</span>
+}</pre></div></div>
+    </div>
+    <div class="note info"><div class="ic">i</div><div><span class="t">lazyfree 설정 5종 (기본 모두 <code>no</code>)</span><code>lazyfree-lazy-eviction</code> · <code>lazyfree-lazy-expire</code> · <code>lazyfree-lazy-server-del</code> · <code>replica-lazy-flush</code> · <code>lazyfree-lazy-user-del</code>. <code>yes</code>로 켜면 연결 해제 후 메모리에 잠시 남아 사용량이 늘 수 있어 모니터링이 필요합니다.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">4 · 원자적 실행</p>
+    <h2>트랜잭션 vs 루아 스크립트</h2>
+    <p class="lead">둘 다 여러 커맨드를 <strong>원자적</strong>으로 실행해 중간에 다른 클라이언트의 영향을 차단합니다. 결정적 차이는 <strong>롤백</strong>입니다 — 트랜잭션은 오류 시 롤백, 루아는 일부가 실패해도 다음으로 진행하며 롤백하지 않습니다.</p>
+    <div class="grid g2">
+      <div class="card tint-b">
+        <div class="k">MULTI / EXEC</div>
+        <h3>큐에 모아 한 번에</h3>
+        <ul class="clean">
+          <li><code>MULTI</code> → 명령들 <code>QUEUED</code> → <code>EXEC</code> 원자 실행</li>
+          <li>도중 오류 발생 시 <b>전체 롤백</b></li>
+        </ul>
+      </div>
+      <div class="card tint-r">
+        <div class="k">Lua Script</div>
+        <h3>서버에서 계산, 1회 왕복</h3>
+        <ul class="clean">
+          <li>원자적이지만 <b>롤백 없음</b> (트랜잭션과 차이)</li>
+          <li><code>SCRIPT LOAD</code> → hash → <code>EVALSHA</code>로 <b>재전송 없이 재실행</b> → 네트워크 절감</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note warn"><div class="ic">!</div><div><span class="t">블로킹 커맨드 금지</span>실행 중 다른 클라이언트가 모두 대기하므로 길이를 짧게. 트랜잭션·스크립트 내부의 <code>BLPOP</code>·<code>BRPOP</code>는 무한 대기를 막기 위해 강제로 차단됩니다 → <code>EXECABORT</code> / <code>ERR ... not allowed from script</code>.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">5 · 안티패턴</p>
+    <h2>has-get / has-del 패턴을 버려라</h2>
+    <p class="lead"><code>EXISTS</code>로 존재를 확인한 뒤 <code>GET</code>/<code>DEL</code> 하는 패턴은 <strong>왕복 2회 + 원자성 붕괴</strong>를 부릅니다. 확인과 처리 사이에 다른 클라이언트가 키를 바꿀 수 있고, 애초에 <code>GET</code>은 없으면 <code>nil</code>, <code>DEL</code>은 없어도 에러가 없습니다.</p>
+    <div class="diagram">
+      <div class="cap">round trips</div>
+      <div class="grid g2" style="margin-top:0">
+        <div>
+          <div class="s" style="color:#FF9388; font:700 12px/1 var(--mono); margin-bottom:10px">✗ has-get · 2 round trips</div>
+          <div class="flow" style="justify-content:flex-start; gap:8px"><span class="chip r">EXISTS key</span><span class="arr">→</span><span class="chip">GET key</span></div>
+          <div class="s" style="color:var(--con-muted); margin-top:8px">사이에 다른 클라이언트가 변경 가능 → 예상치 못한 결과</div>
+        </div>
+        <div>
+          <div class="s" style="color:#7DD6A2; font:700 12px/1 var(--mono); margin-bottom:10px">✓ 직접 · 1 round trip</div>
+          <div class="flow" style="justify-content:flex-start; gap:8px"><span class="chip" style="border-color:#234a36; color:#7DD6A2">GET key</span></div>
+          <div class="s" style="color:var(--con-muted); margin-top:8px">없으면 nil 반환 — 확인이 불필요</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="k">벤치마크 · 10만 키 조회</div>
+      <div class="bench">
+        <div class="row"><span class="lab">exists + get</span><div class="track"><div class="fill" style="width:100%; background:var(--red)">has-get</div></div><span class="v" style="color:var(--red-ink)">223.43초</span></div>
+        <div class="row"><span class="lab">get 직접</span><div class="track"><div class="fill" style="width:49.5%; background:var(--green)">get</div></div><span class="v" style="color:var(--green)">110.71초</span></div>
+      </div>
+      <p class="small" style="margin-top:6px">불필요한 패턴을 없앤 것만으로 <b>약 2배</b> 성능 개선. 대규모 트래픽에서는 1초 차이도 누적됩니다.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">6 · 클라이언트 출력 버퍼</p>
+    <h2>응답을 담는 버퍼, 클래스마다 다르다</h2>
+    <p class="lead"><strong>client output buffer</strong>는 서버 응답을 클라이언트로 보내기 전 임시 저장합니다. 대용량 데이터나 복제 시에는 키워야 하며, <code>client-output-buffer-limit &lt;class&gt; &lt;hard&gt; &lt;soft&gt; &lt;soft seconds&gt;</code>로 설정합니다.</p>
+    <div class="card" style="padding:6px 10px; margin-top:22px">
+      <table class="tbl">
+        <tr><th>클래스</th><th>hard limit</th><th>soft limit</th><th>soft seconds</th><th>의미</th></tr>
+        <tr><td class="cmd">normal</td><td><code>0</code></td><td><code>0</code></td><td><code>0</code></td><td class="small">제한 없음 (일반 클라이언트는 무제한 수신)</td></tr>
+        <tr><td class="cmd">replica</td><td><code>256mb</code></td><td><code>64mb</code></td><td><code>60</code></td><td class="small">복제본 — 큰 데이터 복제 대비</td></tr>
+        <tr><td class="cmd">pubsub</td><td><code>32mb</code></td><td><code>8mb</code></td><td><code>60</code></td><td class="small">pub/sub 구독자</td></tr>
+      </table>
+    </div>
+    <div class="grid g2">
+      <div class="note warn" style="margin-top:18px"><div class="ic">!</div><div><b>hard limit</b> 초과 → 즉시 연결 종료. <b>soft limit</b> 초과가 <b>soft seconds(60초)</b> 동안 지속 → 연결 종료.</div></div>
+      <div class="note info" style="margin-top:18px"><div class="ic">i</div><div><code>maxmemory</code>·<code>maxclients</code>를 키울 때 <b>복제 버퍼도 함께</b> 조정하세요. 부족하면 부분 동기화(partial sync) 실패·데이터 손실 위험이 있습니다.</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">7 · 키스페이스 알림</p>
+    <h2>키 변경·만료를 pub/sub으로 구독</h2>
+    <p class="lead"><strong>keyspace notification</strong>은 내부 pub/sub 채널로 키 변경 사항을 구독하게 해줍니다. <code>notify-keyspace-events</code>에 <strong>채널(K/E)</strong>과 <strong>이벤트 타입</strong> 문자를 조합해 지정합니다.</p>
+    <div class="grid g2" style="margin-top:22px">
+      <div class="card">
+        <div class="k">채널 클래스</div>
+        <ul class="clean">
+          <li><b>K</b> = keyspace · <code>__keyspace@&lt;db&gt;__</code> 접두사</li>
+          <li><b>E</b> = keyevent · <code>__keyevent@&lt;db&gt;__</code> 접두사</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="k">이벤트 타입 문자</div>
+        <div class="kbuild">
+          <div class="ktok"><div class="c">g</div><div class="l">generic</div></div>
+          <div class="ktok"><div class="c">$</div><div class="l">string</div></div>
+          <div class="ktok"><div class="c">l</div><div class="l">list</div></div>
+          <div class="ktok"><div class="c">s</div><div class="l">set</div></div>
+          <div class="ktok"><div class="c">h</div><div class="l">hash</div></div>
+          <div class="ktok"><div class="c">z</div><div class="l">zset</div></div>
+          <div class="ktok"><div class="c">t</div><div class="l">stream</div></div>
+          <div class="ktok"><div class="c">x</div><div class="l">expired</div></div>
+          <div class="ktok"><div class="c">e</div><div class="l">evicted</div></div>
+          <div class="ktok dim"><div class="c">m</div><div class="l">key miss</div></div>
+          <div class="ktok dim"><div class="c">n</div><div class="l">new key</div></div>
+          <div class="ktok"><div class="c">A</div><div class="l">g$lshztxed</div></div>
+        </div>
+        <p class="small" style="margin-top:10px"><code>A</code>는 <code>g$lshztxed</code>의 별칭으로 <b>m·n을 제외한 전체</b>입니다.</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="lbl">만료 이벤트 구독</span></div>
+      <div class="body"><pre><span class="p">&gt;</span> CONFIG SET notify-keyspace-events <span class="o">Ex</span>      <span class="c"># E=keyevent, x=expired</span>
+OK
+<span class="p">&gt;</span> SUBSCRIBE __keyevent@0__:expired
+1) <span class="s">"message"</span>
+2) <span class="s">"__keyevent@0__:expired"</span>
+3) <span class="s">"my_key"</span></pre></div>
+    </div>
+    <div class="note warn"><div class="ic">!</div><div><span class="t">유실 주의 — pub/sub은 fire-and-forget</span>많은 키가 동시에 만료되면 메시지가 pub/sub 버퍼를 초과해 <b>유실</b>될 수 있습니다. 한 번 발행된 이벤트는 재확인 불가, 연결이 끊긴 동안의 이벤트도 놓칩니다. 안정성이 필요하면 버퍼를 키우거나 여러 인스턴스로 분산하세요.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">8 · 프리픽스 키 삭제</p>
+    <h2>SCAN+DEL 반복 vs 루아 한 번</h2>
+    <p class="lead">레디스는 프리픽스 일괄 삭제를 기본 제공하지 않습니다(마스터에서만 가능). <code>SCAN</code>으로 찾아 삭제하는데, 진짜 비용은 연산이 아니라 <strong>네트워크 왕복</strong>입니다. 1000만 키 중 100만 개가 매치되면 <strong>100만 번의 추가 왕복</strong>이 듭니다.</p>
+    <div class="grid g2">
+      <div class="card tint-r">
+        <div class="k">그림 13-14 · 기본 방식</div>
+        <h3>왕복 (A + B)</h3>
+        <div class="flow" style="justify-content:flex-start; gap:8px; margin:10px 0"><span class="chip r">SCAN ⟳</span><span class="chip r">DEL key ⟳</span></div>
+        <p class="small"><b>A</b> SCAN을 cursor 0까지 반복 + <b>B</b> 매 키마다 DEL을 반복 → 매치 수만큼 왕복이 누적.</p>
+      </div>
+      <div class="card tint-g">
+        <div class="k">그림 13-15 · 루아 방식</div>
+        <h3>왕복 (A만)</h3>
+        <div class="flow" style="justify-content:flex-start; gap:8px; margin:10px 0"><span class="chip" style="border-color:#234a36; color:#7DD6A2">EVALSHA ⟳</span></div>
+        <p class="small">스크립트 내부에서 <code>SCAN</code>+<code>DEL</code>을 함께 수행 → <b>DEL 호출 생략</b>, A 횟수만큼만 왕복 → 네트워크 I/O 절감.</p>
+      </div>
+    </div>
+    <div class="note fix"><div class="ic">⚙</div><div><span class="t">차단 시간은 count로 조절</span>스크립트 실행 중 다른 클라이언트는 차단됩니다. 적절한 배치 크기로 <code>count</code>(예: 1,000)를 조절해 한 번에 처리하는 키 수와 차단 시간을 최소화하세요.</div></div>
+  </div>
+</section>
+
+<!-- ===================== PART 05 ===================== -->
+<section class="divider" id="p5">
+  <div class="wrap reveal">
+    <p class="partno">05</p>
+    <p class="eyebrow">Observability</p>
+    <h2>운영 모니터링 지표</h2>
+    <p class="sub">안정 운영의 마지막 조각은 “무엇을 볼 것인가”입니다. 느린 커맨드를 기록하는 SlowLog와, 컴퓨팅 자원을 보는 다섯 가지 그래프 지표를 챙깁니다.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">1 · 슬로우 로그</p>
+    <h2>느린 커맨드를 메모리에 기록</h2>
+    <p class="lead"><strong>SlowLog</strong>는 실행이 느린 커맨드를 기록합니다. 주기적으로 검토하면 예상치 못한/악의적 명령을 식별해 성능과 보안 모두에 도움이 됩니다.</p>
+    <div class="panel">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="lbl">SLOWLOG GET</span></div>
+      <div class="body"><pre><span class="p">&gt;</span> SLOWLOG GET
+1) 1) (integer) <span class="o">1923</span>          <span class="c"># ① 고유 ID</span>
+   2) (integer) <span class="o">1696344048</span>    <span class="c"># ② 실행 시점 (unix timestamp)</span>
+   3) (integer) <span class="o">35233</span>         <span class="c"># ③ 실행 소요 시간 (마이크로초!)</span>
+   4) 1) <span class="s">"SCAN"</span>              <span class="c"># ④ 느리게 수행된 커맨드</span>
+      2) <span class="s">"10179327"</span>
+      3) <span class="s">"COUNT"</span>
+      4) <span class="s">"50000"</span></pre></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><div class="k">slowlog-log-slower-than</div><p class="small">기록 임계 시간. <b>마이크로초</b> 단위, 기본 <code>10000</code> = <b>10ms</b>.</p></div>
+      <div class="card"><div class="k">slowlog-max-len</div><p class="small">유지 레코드 수. 기본 <code>128</code>개, 초과 시 오래된 레코드부터 대체.</p></div>
+    </div>
+    <div class="note fix"><div class="ic">✎</div><div><span class="t">정확도 메모 — 책 본문 보정</span>책은 “기본은 10,000ms, 즉 10초”라고 적었지만, <code>slowlog-log-slower-than</code>과 SLOWLOG 레코드의 ③ 실행 시간은 <b>밀리초(ms)가 아니라 마이크로초(μs)</b> 단위입니다. 따라서 기본값 <code>10000</code>은 <b>10초가 아니라 10ms</b>입니다. (Redis 공식 문서 기준 확인)</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reveal">
+    <p class="eyebrow">2 · 그래프 지표</p>
+    <h2>다섯 가지 운영 대시보드 지표</h2>
+    <p class="lead">자원의 <strong>과다 사용</strong>은 높은 지연을, <strong>과소 사용</strong>은 낭비를 뜻합니다. CPU·메모리·네트워크·커넥션·복제를 꾸준히 지켜봐야 합니다.</p>
+    <div class="grid g2" style="margin-top:24px">
+      <div class="card tint-r">
+        <h3>🔴 CPU</h3>
+        <ul class="clean">
+          <li>커맨드 실행은 싱글 스레드, <b>백업·UNLINK는 다른 CPU</b> 활용</li>
+          <li>O(N) 커맨드·높은 카디널리티 = 부하 ↑</li>
+          <li>읽기 부하면 <b>복제본 참조</b>로, 백업은 <b>복제본에서</b></li>
+        </ul>
+      </div>
+      <div class="card tint-b">
+        <h3>🔵 메모리</h3>
+        <ul class="clean">
+          <li><code>used_memory</code>(논리) vs <code>used_memory_rss</code>(물리)</li>
+          <li>둘의 차 = <b>단편화</b> → <code>activedefrag</code>(4.0+)로 관리</li>
+          <li><code>DatabaseMemoryUsagePercentage</code> 100% → eviction (과도하면 CPU↑)</li>
+        </ul>
+      </div>
+      <div class="card tint-g">
+        <h3>🟢 네트워크</h3>
+        <ul class="clean">
+          <li>네트워크 I/O 모니터 — VM·도커·k8s의 <b>대역폭 한계</b> 주의</li>
+          <li>한계에 걸리면 처리량이 더 안 오르는 병목 발생</li>
+          <li>읽기면 복제본 추가, 쓰기면 마이그레이션·<b>클러스터</b>로 분산</li>
+        </ul>
+      </div>
+      <div class="card tint-a">
+        <h3>🟠 커넥션</h3>
+        <ul class="clean">
+          <li>활성·신규 연결 수 추이 주시 (급증 = 누수 의심)</li>
+          <li><code>tcp-keepalive</code>(기본 300초)로 유휴 연결 정리</li>
+          <li>연결 비용이 큼 → <b>커넥션 풀링</b>, TLS 핸드셰이크 비용 유의</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px; border-color:var(--line-strong)">
+      <h3>🟣 복제</h3>
+      <p class="small">마스터는 복제본이 있으면 명령 스트림을 계속 전송합니다. <b>복제 지연(replication lag)</b>의 급증은 복제본이 마스터 속도를 못 따라간다는 신호입니다. 지연이 커지면 복제본이 <b>전체 동기화</b>를 요청할 수 있고, 이때 마스터가 스냅숏을 만들며 성능이 저하됩니다. 원인은 마스터의 과도한 쓰기, 네트워크 대역폭 고갈, 복제 출력 버퍼 크기 문제 등이므로 다른 메트릭과 함께 점검합니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CLOSING ===================== -->
+<section style="background:var(--con); border-bottom:none; color:var(--con-ink)">
+  <div class="wrap reveal">
+    <p class="eyebrow" style="color:#FF7A6E">Recap</p>
+    <h2 style="color:#fff">한 문장으로 줄이면</h2>
+    <p class="lead" style="color:#C7CCD6; max-width:74ch"><strong style="color:#fff; box-shadow:inset 0 -.5em 0 rgba(218,42,30,.35)">보이게 만들고, 무중단으로 갱신하고, 위험 설정을 끄고, 싱글 스레드를 막지 않으면</strong> 레디스는 대체로 잘 굴러갑니다. 13장은 그 네 가지를 위한 도구 모음입니다.</p>
+    <div class="grid g3" style="margin-top:28px">
+      <div class="card" style="background:var(--con-2); border-color:var(--con-line)"><div class="k" style="color:#FF7A6E">검토 메모 ①</div><p class="small" style="color:#C7CCD6"><code style="background:#262A34; border-color:#2C303B; color:#E7E9EE">slowlog-log-slower-than</code> 단위는 μs(마이크로초). 기본 10000 = 10ms. 책의 “10초”는 단위 오기로 보정.</p></div>
+      <div class="card" style="background:var(--con-2); border-color:var(--con-line)"><div class="k" style="color:#FF7A6E">검토 메모 ②</div><p class="small" style="color:#C7CCD6">SLOWLOG 레코드 ③ 실행 시간도 ms가 아니라 μs. 그 외 <code style="background:#262A34; border-color:#2C303B; color:#E7E9EE">maxmemory-policy=noeviction</code>, <code style="background:#262A34; border-color:#2C303B; color:#E7E9EE">tcp-keepalive 300</code>, 출력 버퍼 기본값, <code style="background:#262A34; border-color:#2C303B; color:#E7E9EE">LAZYFREE_THRESHOLD 64</code> 등은 모두 일치 확인.</p></div>
+      <div class="card" style="background:var(--con-2); border-color:var(--con-line)"><div class="k" style="color:#FF7A6E">출처</div><p class="small" style="color:#C7CCD6">개발자를 위한 레디스 · 13장 「레디스 운영하기」 (p.377–426). 학습 정리용 장표.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span class="pill">REDIS · CH.13 · 레디스 운영하기</span>
+    <span>← / → 키로 섹션 이동 · 스크롤로 정독</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  // progress bar
+  var prog=document.getElementById('prog');
+  function onScroll(){
+    var h=document.documentElement;
+    var sc=(h.scrollTop)/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(sc*100).toFixed(2)+'%';
+  }
+  document.addEventListener('scroll',onScroll,{passive:true}); onScroll();
+
+  // reveal
+  var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!reduce && 'IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+    },{threshold:.12});
+    document.querySelectorAll('.reveal').forEach(function(el){io.observe(el);});
+  } else {
+    document.querySelectorAll('.reveal').forEach(function(el){el.classList.add('in');});
+  }
+
+  // active rail
+  var rail=document.querySelectorAll('.rail a[data-r]');
+  var ids=['hero','p1','p2','p3','p4','p5'];
+  function activeRail(){
+    var pos=window.scrollY+window.innerHeight*0.33, cur=0;
+    ids.forEach(function(id,i){var el=document.getElementById(id); if(el && el.offsetTop<=pos) cur=i;});
+    rail.forEach(function(a,i){a.classList.toggle('active',i===cur);});
+  }
+  document.addEventListener('scroll',activeRail,{passive:true}); activeRail();
+
+  // keyboard section nav
+  var anchors=['#hero','#map','#p1','#p2','#p3','#p4','#p5'];
+  function secList(){return anchors.map(function(a){return document.querySelector(a);}).filter(Boolean);}
+  document.addEventListener('keydown',function(e){
+    if(e.target.matches&&e.target.matches('input,textarea')) return;
+    if(e.key!=='ArrowDown'&&e.key!=='ArrowRight'&&e.key!=='ArrowUp'&&e.key!=='ArrowLeft') return;
+    var secs=secList(), y=window.scrollY+4, idx=0;
+    for(var i=0;i<secs.length;i++){ if(secs[i].offsetTop<=y+window.innerHeight*0.4) idx=i; }
+    var dir=(e.key==='ArrowDown'||e.key==='ArrowRight')?1:-1;
+    var next=Math.max(0,Math.min(secs.length-1,idx+dir));
+    e.preventDefault();
+    window.scrollTo({top:secs[next].offsetTop, behavior:reduce?'auto':'smooth'});
+  });
+})();
+</script>
+</body>
+</html>
